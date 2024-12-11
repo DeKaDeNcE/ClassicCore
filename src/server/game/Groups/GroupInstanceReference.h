@@ -23,17 +23,18 @@
 class Group;
 class InstanceMap;
 
-class TC_GAME_API GroupInstanceReference : public Reference<Group, InstanceMap, GroupInstanceReference>
+class TC_GAME_API GroupInstanceReference : public Reference<Group, InstanceMap>
 {
 public:
-    GroupInstanceReference() = default;
+    GroupInstanceReference() : Reference<Group, InstanceMap>() { }
     ~GroupInstanceReference() { unlink(); }
+    GroupInstanceReference* next() { return (GroupInstanceReference*)Reference<Group, InstanceMap>::next(); }
+    GroupInstanceReference const* next() const { return (GroupInstanceReference const*)Reference<Group, InstanceMap>::next(); }
 
 protected:
-    friend Reference<Group, InstanceMap, GroupInstanceReference>;
-    void targetObjectBuildLink();
-    void targetObjectDestroyLink();
-    void sourceObjectDestroyLink();
+    void targetObjectBuildLink() override;
+    void targetObjectDestroyLink() override;
+    void sourceObjectDestroyLink() override;
 };
 
 #endif // GroupInstanceReference_h__

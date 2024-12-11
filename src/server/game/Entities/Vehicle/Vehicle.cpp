@@ -52,7 +52,7 @@ UsableSeatNum(0), _me(unit), _vehicleInfo(vehInfo), _creatureEntry(creatureEntry
     // Set or remove correct flags based on available seats. Will overwrite db data (if wrong).
     if (UsableSeatNum)
         _me->SetNpcFlag((_me->GetTypeId() == TYPEID_PLAYER ? UNIT_NPC_FLAG_PLAYER_VEHICLE : UNIT_NPC_FLAG_SPELLCLICK));
-    else if (!unit->m_unitData->InteractSpellID)
+    else
         _me->RemoveNpcFlag((_me->GetTypeId() == TYPEID_PLAYER ? UNIT_NPC_FLAG_PLAYER_VEHICLE : UNIT_NPC_FLAG_SPELLCLICK));
 
     InitMovementInfoForBase();
@@ -846,6 +846,10 @@ bool VehicleJoinEvent::Execute(uint64, uint32)
     Player* player = Passenger->ToPlayer();
     if (player)
     {
+        // drop flag
+        if (Battleground* bg = player->GetBattleground())
+            bg->EventPlayerDroppedFlag(player);
+
         player->StopCastingCharm();
         player->StopCastingBindSight();
         player->SendOnCancelExpectedVehicleRideAura();
@@ -988,9 +992,4 @@ std::string Vehicle::GetDebugInfo() const
     }
 
     return sstr.str();
-}
-
-Trinity::unique_weak_ptr<Vehicle> Vehicle::GetWeakPtr() const
-{
-    return _me->GetVehicleKitWeakPtr();
 }

@@ -72,6 +72,8 @@ namespace WorldPackets
             void Initialize(::VoidStorageItem const* voidItem);
 
             uint32 ItemID = 0;
+            int32 RandomPropertiesSeed = 0;
+            int32 RandomPropertiesID = 0;
             Optional<ItemBonuses> ItemBonus;
             ItemModList Modifications;
 
@@ -82,7 +84,6 @@ namespace WorldPackets
         {
             int32 ItemID = 0;
             std::vector<int32> BonusListIDs;
-            std::vector<ItemMod> Modifications;
 
             bool operator==(ItemBonusKey const& right) const;
         };

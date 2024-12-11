@@ -19,12 +19,11 @@
 #define TRINITY_WAYPOINTDEFINES_H
 
 #include "Define.h"
-#include "Duration.h"
 #include "EnumFlag.h"
 #include "Optional.h"
 #include <vector>
 
-static inline constexpr std::size_t WAYPOINT_PATH_FLAG_FOLLOW_PATH_BACKWARDS_MINIMUM_NODES = 2;
+#define WAYPOINT_PATH_FLAG_FOLLOW_PATH_BACKWARDS_MINIMUM_NODES 2
 
 enum class WaypointMoveType : uint8
 {
@@ -40,17 +39,14 @@ enum class WaypointPathFlags : uint8
 {
     None                                = 0x00,
     FollowPathBackwardsFromEndToStart   = 0x01,
-    ExactSplinePath                     = 0x02, // Points are going to be merged into single packets and pathfinding is disabled
-
-    FlyingPath                          = ExactSplinePath   // flying paths are always exact splines
 };
 
 DEFINE_ENUM_FLAG(WaypointPathFlags);
 
 struct WaypointNode
 {
-    constexpr WaypointNode() : Id(0), X(0.f), Y(0.f), Z(0.f), MoveType(WaypointMoveType::Walk) { }
-    constexpr WaypointNode(uint32 id, float x, float y, float z, Optional<float> orientation = { }, Optional<Milliseconds> delay = {})
+    WaypointNode() : Id(0), X(0.f), Y(0.f), Z(0.f), Delay(0), MoveType(WaypointMoveType::Walk) { }
+    WaypointNode(uint32 id, float x, float y, float z, Optional<float> orientation = { }, uint32 delay = 0)
     {
         Id = id;
         X = x;
@@ -66,29 +62,25 @@ struct WaypointNode
     float Y;
     float Z;
     Optional<float> Orientation;
-    Optional<Milliseconds> Delay;
+    uint32 Delay;
     WaypointMoveType MoveType;
 };
 
 struct WaypointPath
 {
-    WaypointPath() = default;
+    WaypointPath() : Id(0), MoveType(WaypointMoveType::Walk), Flags(WaypointPathFlags::None) { }
     WaypointPath(uint32 id, std::vector<WaypointNode>&& nodes, WaypointMoveType moveType = WaypointMoveType::Walk, WaypointPathFlags flags = WaypointPathFlags::None)
     {
         Id = id;
-        Nodes = std::move(nodes);
+        Nodes = nodes;
         Flags = flags;
         MoveType = moveType;
     }
 
     std::vector<WaypointNode> Nodes;
-    std::vector<std::pair<std::size_t, std::size_t>> ContinuousSegments;
-    uint32 Id = 0;
-    WaypointMoveType MoveType = WaypointMoveType::Walk;
+    uint32 Id;
+    WaypointMoveType MoveType;
     EnumFlag<WaypointPathFlags> Flags = WaypointPathFlags::None;
-    Optional<float> Velocity;
-
-    void BuildSegments();
 };
 
 #endif

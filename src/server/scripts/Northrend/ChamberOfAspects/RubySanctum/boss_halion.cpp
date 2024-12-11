@@ -1506,7 +1506,7 @@ class spell_halion_combustion_consumption_periodic : public SpellScriptLoader
                     return;
 
                 uint32 triggerSpell = aurEff->GetSpellEffectInfo().TriggerSpell;
-                float radius = caster->GetObjectScale() * M_PI / 3;
+                int32 radius = caster->GetObjectScale() * M_PI * 10000 / 3;
 
                 CastSpellExtraArgs args(aurEff);
                 args.OriginalCaster = caster->GetGUID();
@@ -1646,7 +1646,7 @@ class spell_halion_twilight_realm_handlers : public SpellScriptLoader
             {
                 GetTarget()->RemoveAurasDueToSpell(SPELL_TWILIGHT_REALM);
                 if (InstanceScript* instance = GetTarget()->GetInstanceScript())
-                    instance->SendEncounterUnit(ENCOUNTER_FRAME_PHASE_SHIFT_CHANGED, nullptr);
+                    instance->SendEncounterUnit(ENCOUNTER_FRAME_UNK7);
             }
 
             void OnApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*handle*/)
@@ -1657,7 +1657,7 @@ class spell_halion_twilight_realm_handlers : public SpellScriptLoader
 
                 target->RemoveAurasDueToSpell(_beforeHitSpellId, ObjectGuid::Empty, 0, AURA_REMOVE_BY_ENEMY_SPELL);
                 if (InstanceScript* instance = target->GetInstanceScript())
-                    instance->SendEncounterUnit(ENCOUNTER_FRAME_PHASE_SHIFT_CHANGED, nullptr);
+                    instance->SendEncounterUnit(ENCOUNTER_FRAME_UNK7);
             }
 
             void Register() override

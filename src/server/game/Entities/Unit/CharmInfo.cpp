@@ -149,7 +149,7 @@ void CharmInfo::InitCharmCreateSpells()
                 newstate = ACT_PASSIVE;
             else
             {
-                if (spellInfo->IsAutocastEnabledByDefault() && spellInfo->NeedsExplicitUnitTarget())
+                if (spellInfo->NeedsExplicitUnitTarget())
                 {
                     newstate = ACT_ENABLED;
                     ToggleCreatureAutocast(spellInfo, true);
@@ -188,18 +188,7 @@ bool CharmInfo::AddSpellToActionBar(SpellInfo const* spellInfo, ActiveStates new
         uint8 j = (preferredSlot + i) % MAX_UNIT_ACTION_BAR_INDEX;
         if (!PetActionBar[j].GetAction() && PetActionBar[j].IsActionBarForSpell())
         {
-            newstate = [&]
-            {
-                if (newstate != ACT_DECIDE)
-                    return newstate;
-                if (!spellInfo->IsAutocastable())
-                    return ACT_PASSIVE;
-                if (spellInfo->IsAutocastEnabledByDefault())
-                    return ACT_ENABLED;
-                return ACT_DISABLED;
-            }();
-
-            SetActionBar(j, spell_id, newstate);
+            SetActionBar(j, spell_id, newstate == ACT_DECIDE ? spellInfo->IsAutocastable() ? ACT_DISABLED : ACT_PASSIVE : newstate);
             return true;
         }
     }

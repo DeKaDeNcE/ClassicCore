@@ -288,6 +288,7 @@ bool Pet::LoadPetFromDB(Player* owner, uint32 petEntry, uint32 petnumber, bool c
     {
         case SUMMON_PET:
             petlevel = owner->GetLevel();
+            SetClass(CLASS_MAGE);
             ReplaceAllUnitFlags(UNIT_FLAG_PLAYER_CONTROLLED); // this enables popup window (pet dismiss, cancel)
             break;
         case HUNTER_PET:
@@ -441,7 +442,7 @@ bool Pet::LoadPetFromDB(Player* owner, uint32 petEntry, uint32 petnumber, bool c
             owner->DisablePetControlsOnMount(REACT_PASSIVE, COMMAND_FOLLOW);
 
         // must be after SetMinion (owner guid check)
-        LoadTemplateImmunities(0);
+        LoadTemplateImmunities();
         m_loading = false;
     });
 
@@ -905,19 +906,22 @@ bool Guardian::InitStatsForLevel(uint8 petlevel)
     {
         // remove elite bonuses included in DB values
         CreatureBaseStats const* stats = sObjectMgr->GetCreatureBaseStats(petlevel, cinfo->unit_class);
-        ApplyLevelScaling();
+        float healthmod = GetHealthMod(cinfo->Classification);
+        uint32 basehp = stats->GenerateHealth(m_creatureDifficulty);
+        uint32 health = uint32(basehp * healthmod);
+        uint32 mana = stats->GenerateMana(m_creatureDifficulty);
 
-        CreatureDifficulty const* creatureDifficulty = GetCreatureDifficulty();
-        SetCreateHealth(std::max(sDB2Manager.EvaluateExpectedStat(ExpectedStatType::CreatureHealth, petlevel, creatureDifficulty->GetHealthScalingExpansion(), m_unitData->ContentTuningID, Classes(cinfo->unit_class), 0) * creatureDifficulty->HealthModifier * GetHealthMod(cinfo->Classification), 1.0f));
-        SetCreateMana(stats->BaseMana);
+        SetCreateHealth(health);
+        SetCreateMana(mana);
         SetCreateStat(STAT_STRENGTH, 22);
         SetCreateStat(STAT_AGILITY, 22);
         SetCreateStat(STAT_STAMINA, 25);
         SetCreateStat(STAT_INTELLECT, 28);
+        SetCreateStat(STAT_SPIRIT, 27);
     }
 
     // Power
-    SetPowerType(powerType, true, true);
+    SetPowerType(powerType);
 
     // Damage
     SetBonusDamage(0);
@@ -1068,7 +1072,8 @@ bool Guardian::InitStatsForLevel(uint8 petlevel)
                      * should be copied here (or moved to another method or if that function should be called here
                      * or not just for this default case)
                      */
-                    float basedamage = GetBaseDamageForLevel(petlevel);
+                    CreatureBaseStats const* stats = sObjectMgr->GetCreatureBaseStats(petlevel, cinfo->unit_class);
+                    float basedamage = stats->GenerateBaseDamage(m_creatureDifficulty);
 
                     float weaponBaseMinDamage = basedamage;
                     float weaponBaseMaxDamage = basedamage * 1.5f;
@@ -1388,12 +1393,10 @@ bool Pet::addSpell(uint32 spellId, ActiveStates active /*= ACT_DECIDE*/, PetSpel
 
     if (active == ACT_DECIDE)                               // active was not used before, so we save it's autocast/passive state here
     {
-        if (!spellInfo->IsAutocastable())
-            newspell.active = ACT_PASSIVE;
-        else if (spellInfo->IsAutocastEnabledByDefault())
-            newspell.active = ACT_ENABLED;
-        else
+        if (spellInfo->IsAutocastable())
             newspell.active = ACT_DISABLED;
+        else
+            newspell.active = ACT_PASSIVE;
     }
     else
         newspell.active = active;

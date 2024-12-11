@@ -29,13 +29,12 @@ template<class T>
 class RandomMovementGenerator : public MovementGeneratorMedium<T, RandomMovementGenerator<T>>
 {
     public:
-        explicit RandomMovementGenerator(float distance = 0.0f, Optional<Milliseconds> duration = {},
-            Optional<Scripting::v2::ActionResultSetter<MovementStopReason>>&& scriptResult = {});
+        explicit RandomMovementGenerator(float distance = 0.0f, Optional<Milliseconds> duration = {});
 
         MovementGeneratorType GetMovementGeneratorType() const override;
 
-        void Pause(uint32 timer) override;
-        void Resume(uint32 overrideTimer) override;
+        void Pause(uint32 timer = 0) override;
+        void Resume(uint32 overrideTimer = 0) override;
 
         void DoInitialize(T*);
         void DoReset(T*);

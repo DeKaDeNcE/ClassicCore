@@ -18,7 +18,6 @@
 #ifndef TRINITYCORE_MAP_UTILS_H
 #define TRINITYCORE_MAP_UTILS_H
 
-#include <memory>       // std::to_address, std::addressof
 #include <type_traits>
 
 namespace Trinity::Containers
@@ -27,23 +26,13 @@ namespace Trinity::Containers
  * Returns a pointer to mapped value (or the value itself if map stores pointers)
  */
 template<class M>
-inline auto MapGetValuePtr(M& map, typename M::key_type const& key)
+auto MapGetValuePtr(M& map, typename M::key_type const& key)
 {
-    using mapped_type = typename M::mapped_type;
-
     auto itr = map.find(key);
-    if constexpr (std::is_pointer_v<mapped_type>)
-        return itr != map.end() ? std::to_address(itr->second) : nullptr;       // raw pointer
-    else if constexpr (requires(mapped_type const& p) { p.operator->(); })
-    {
-        // smart pointers
-        if constexpr (std::is_copy_constructible_v<mapped_type>)
-            return itr != map.end() ? itr->second : nullptr;                    // copyable (like shared_ptr)
-        else
-            return itr != map.end() ? std::to_address(itr->second) : nullptr;   // non-copyable unique_ptr like, unwrap it to raw pointer
-    }
+    if constexpr (std::is_pointer_v<typename M::mapped_type>)
+        return itr != map.end() ? itr->second : nullptr;
     else
-        return itr != map.end() ? std::addressof(itr->second) : nullptr;        // value
+        return itr != map.end() ? &itr->second : nullptr;
 }
 
 template<class K, class V, template<class, class, class...> class M, class... Rest>

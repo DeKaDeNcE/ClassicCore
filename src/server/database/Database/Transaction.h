@@ -22,7 +22,6 @@
 #include "DatabaseEnvFwd.h"
 #include "StringFormat.h"
 #include <functional>
-#include <future>
 #include <mutex>
 #include <variant>
 #include <vector>
@@ -101,7 +100,7 @@ private:
 class TC_DATABASE_API TransactionCallback
 {
 public:
-    TransactionCallback(std::future<bool>&& future) : m_future(std::move(future)) { }
+    TransactionCallback(TransactionFuture&& future) : m_future(std::move(future)) { }
     TransactionCallback(TransactionCallback&&) = default;
 
     TransactionCallback& operator=(TransactionCallback&&) = default;
@@ -113,7 +112,7 @@ public:
 
     bool InvokeIfReady();
 
-    std::future<bool> m_future;
+    TransactionFuture m_future;
     std::function<void(bool)> m_callback;
 };
 

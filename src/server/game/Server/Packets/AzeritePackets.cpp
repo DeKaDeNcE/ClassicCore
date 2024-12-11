@@ -56,10 +56,10 @@ void WorldPackets::Azerite::AzeriteEmpoweredItemViewed::Read()
 
 void WorldPackets::Azerite::AzeriteEmpoweredItemSelectPower::Read()
 {
-    _worldPacket >> ContainerSlot;
-    _worldPacket >> Slot;
     _worldPacket >> Tier;
     _worldPacket >> AzeritePowerID;
+    _worldPacket >> ContainerSlot;
+    _worldPacket >> Slot;
 }
 
 WorldPacket const* WorldPackets::Azerite::PlayerAzeriteItemEquippedStatusChanged::Write()

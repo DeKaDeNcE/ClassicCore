@@ -299,15 +299,9 @@ int32 ReputationMgr::GetRenownMaxLevel(FactionEntry const* renownFactionEntry) c
 void ReputationMgr::ApplyForceReaction(uint32 faction_id, ReputationRank rank, bool apply)
 {
     if (apply)
-    {
         _forcedReactions[faction_id] = rank;
-        _player->SetVisibleForcedReaction(faction_id, rank);
-    }
     else
-    {
         _forcedReactions.erase(faction_id);
-        _player->RemoveVisibleForcedReaction(faction_id);
-    }
 }
 
 ReputationFlags ReputationMgr::GetDefaultStateFlags(FactionEntry const* factionEntry) const
@@ -325,6 +319,22 @@ ReputationFlags ReputationMgr::GetDefaultStateFlags(FactionEntry const* factionE
         flags |= ReputationFlags::ShowPropagated;
 
     return flags;
+}
+
+void ReputationMgr::SendForceReactions()
+{
+    WorldPackets::Reputation::SetForcedReactions setForcedReactions;
+    setForcedReactions.Reactions.resize(_forcedReactions.size());
+
+    std::size_t i = 0;
+    for (ForcedReactions::const_iterator itr = _forcedReactions.begin(); itr != _forcedReactions.end(); ++itr)
+    {
+        WorldPackets::Reputation::ForcedReaction& forcedReaction = setForcedReactions.Reactions[i++];
+        forcedReaction.Faction = int32(itr->first);
+        forcedReaction.Reaction = int32(itr->second);
+    }
+
+    _player->SendDirectMessage(setForcedReactions.Write());
 }
 
 void ReputationMgr::SendState(FactionState const* faction)
@@ -362,14 +372,9 @@ void ReputationMgr::SendInitialReputations()
 
     for (FactionStateList::iterator itr = _factions.begin(); itr != _factions.end(); ++itr)
     {
-        WorldPackets::Reputation::FactionData& factionData = initFactions.Factions.emplace_back();
-        factionData.FactionID = itr->second.ID;
-        factionData.Flags = itr->second.Flags.AsUnderlyingType();
-        factionData.Standing = itr->second.Standing;
+        initFactions.FactionFlags[itr->first] = itr->second.Flags.AsUnderlyingType();
+        initFactions.FactionStandings[itr->first] = itr->second.Standing;
         /// @todo faction bonus
-        WorldPackets::Reputation::FactionBonusData& bonus = initFactions.Bonuses.emplace_back();
-        bonus.FactionID = itr->second.ID;
-        bonus.FactionHasBonus = false;
         itr->second.needSend = false;
     }
 
@@ -858,5 +863,5 @@ bool ReputationMgr::CanGainParagonReputationForFaction(FactionEntry const* facti
     if (!quest)
         return false;
 
-    return _player->GetLevel() >= _player->GetQuestMinLevel(quest);
+    return _player->GetLevel() >= quest->GetQuestMinLevel();
 }

@@ -480,7 +480,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::AreaTrigger::AreaTrigge
     Player* player = GetPlayer();
     if (player->IsInFlight())
     {
-        TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '{}' {} in flight, ignore Area Trigger ID: {}",
+        TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '{}' {} in flight, ignore Area Trigger ID:{}",
             player->GetName(), player->GetGUID().ToString(), packet.AreaTriggerID);
         return;
     }
@@ -488,12 +488,12 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::AreaTrigger::AreaTrigge
     AreaTriggerEntry const* atEntry = sAreaTriggerStore.LookupEntry(packet.AreaTriggerID);
     if (!atEntry)
     {
-        TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '{}' {} send unknown (by DBC) Area Trigger ID: {}",
+        TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '{}' {} send unknown (by DBC) Area Trigger ID:{}",
             player->GetName(), player->GetGUID().ToString(), packet.AreaTriggerID);
         return;
     }
 
-    if (packet.Entered != player->IsInAreaTrigger(atEntry))
+    if (packet.Entered && !player->IsInAreaTriggerRadius(atEntry))
     {
         TC_LOG_DEBUG("network", "HandleAreaTriggerOpcode: Player '{}' {} too far, ignore Area Trigger ID: {}",
             player->GetName(), player->GetGUID().ToString(), packet.AreaTriggerID);
@@ -508,14 +508,6 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::AreaTrigger::AreaTrigge
 
     if (sScriptMgr->OnAreaTrigger(player, atEntry, packet.Entered))
         return;
-
-    if (atEntry->AreaTriggerActionSetID)
-    {
-        if (packet.Entered)
-            player->UpdateCriteria(CriteriaType::EnterAreaTriggerWithActionSet, atEntry->AreaTriggerActionSetID);
-        else
-            player->UpdateCriteria(CriteriaType::LeaveAreaTriggerWithActionSet, atEntry->AreaTriggerActionSetID);
-    }
 
     if (player->IsAlive() && packet.Entered)
     {
@@ -558,7 +550,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::AreaTrigger::AreaTrigge
             }
 
             if (anyObjectiveChangedCompletionState)
-                player->UpdateVisibleObjectInteractions(true, false, false, true);
+                player->UpdateVisibleGameobjectsOrSpellClicks();
         }
     }
 
@@ -566,7 +558,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::AreaTrigger::AreaTrigge
     {
         // set resting flag we are in the inn
         if (packet.Entered)
-            player->GetRestMgr().SetInnTriggerID(atEntry->ID);
+            player->GetRestMgr().SetRestFlag(REST_FLAG_IN_TAVERN, atEntry->ID);
         else
             player->GetRestMgr().RemoveRestFlag(REST_FLAG_IN_TAVERN);
 
@@ -580,6 +572,9 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::AreaTrigger::AreaTrigge
 
         return;
     }
+
+    if (Battleground* bg = player->GetBattleground())
+        bg->HandleAreaTrigger(player, packet.AreaTriggerID, packet.Entered);
 
     if (OutdoorPvP* pvp = player->GetOutdoorPvP())
         if (pvp->HandleAreaTrigger(_player, packet.AreaTriggerID, packet.Entered))
@@ -706,17 +701,19 @@ void WorldSession::HandleUpdateAccountData(WorldPackets::ClientConfig::UserClien
         return;
     }
 
-    std::string dest;
-    dest.resize(packet.Size);
+    ByteBuffer dest(packet.Size, ByteBuffer::Resize{});
 
     uLongf realSize = packet.Size;
-    if (uncompress(reinterpret_cast<Bytef*>(dest.data()), &realSize, packet.CompressedData.contents(), packet.CompressedData.size()) != Z_OK)
+    if (uncompress(dest.contents(), &realSize, packet.CompressedData.contents(), packet.CompressedData.size()) != Z_OK)
     {
         TC_LOG_ERROR("network", "UAD: Failed to decompress account data");
         return;
     }
 
-    SetAccountData(AccountDataType(packet.DataType), packet.Time, dest);
+    std::string adata;
+    dest >> adata;
+
+    SetAccountData(AccountDataType(packet.DataType), packet.Time, adata);
 }
 
 void WorldSession::HandleRequestAccountData(WorldPackets::ClientConfig::RequestAccountData& request)
@@ -751,8 +748,8 @@ void WorldSession::HandleRequestAccountData(WorldPackets::ClientConfig::RequestA
 
 void WorldSession::HandleSetActionButtonOpcode(WorldPackets::Spells::SetActionButton& packet)
 {
-    uint64 action = ACTION_BUTTON_ACTION(packet.Action);
-    uint8 type = ACTION_BUTTON_TYPE(packet.Action);
+    uint32 action = ACTION_BUTTON_ACTION(packet.Action);
+    uint32 type = ACTION_BUTTON_TYPE(packet.Action);
 
     TC_LOG_DEBUG("network", "CMSG_SET_ACTION_BUTTON Button: {} Action: {} Type: {}", packet.Index, action, uint32(type));
 
@@ -1170,34 +1167,7 @@ void WorldSession::HandleConversationLineStarted(WorldPackets::Misc::Conversatio
 
 void WorldSession::HandleRequestLatestSplashScreen(WorldPackets::Misc::RequestLatestSplashScreen& /*requestLatestSplashScreen*/)
 {
-    UISplashScreenEntry const* splashScreen = nullptr;
-    for (auto itr = sUISplashScreenStore.begin(); itr != sUISplashScreenStore.end(); ++itr)
-    {
-        if (!ConditionMgr::IsPlayerMeetingCondition(_player, itr->CharLevelConditionID))
-            continue;
-
-        splashScreen = *itr;
-    }
-
     WorldPackets::Misc::SplashScreenShowLatest splashScreenShowLatest;
-    splashScreenShowLatest.UISplashScreenID = splashScreen ? splashScreen->ID : 0;
+    splashScreenShowLatest.UISplashScreenID =  0;
     SendPacket(splashScreenShowLatest.Write());
-}
-
-void WorldSession::HandleQueryCountdownTimer(WorldPackets::Misc::QueryCountdownTimer& queryCountdownTimer)
-{
-    Group const* group = _player->GetGroup();
-    if (!group)
-        return;
-
-    Group::CountdownInfo const* info = group->GetCountdownInfo(queryCountdownTimer.TimerType);
-    if (!info)
-        return;
-
-    WorldPackets::Misc::StartTimer startTimer;
-    startTimer.Type = queryCountdownTimer.TimerType;
-    startTimer.TimeLeft = info->GetTimeLeft();
-    startTimer.TotalTime = info->GetTotalTime();
-
-    _player->SendDirectMessage(startTimer.Write());
 }

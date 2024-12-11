@@ -75,17 +75,17 @@ bool AuctionBotSeller::Initialize()
 
     TC_LOG_DEBUG("ahbot", "Loading loot items for filter..");
     QueryResult result = WorldDatabase.PQuery(
-        "SELECT `item` FROM `creature_loot_template` WHERE `ItemType` = 0 UNION "
-        "SELECT `item` FROM `disenchant_loot_template` WHERE `ItemType` = 0 UNION "
-        "SELECT `item` FROM `fishing_loot_template` WHERE `ItemType` = 0 UNION "
-        "SELECT `item` FROM `gameobject_loot_template` WHERE `ItemType` = 0 UNION "
-        "SELECT `item` FROM `item_loot_template` WHERE `ItemType` = 0 UNION "
-        "SELECT `item` FROM `milling_loot_template` WHERE `ItemType` = 0 UNION "
-        "SELECT `item` FROM `pickpocketing_loot_template` WHERE `ItemType` = 0 UNION "
-        "SELECT `item` FROM `prospecting_loot_template` WHERE `ItemType` = 0 UNION "
-        "SELECT `item` FROM `reference_loot_template` WHERE `ItemType` = 0 UNION "
-        "SELECT `item` FROM `skinning_loot_template` WHERE `ItemType` = 0 UNION "
-        "SELECT `item` FROM `spell_loot_template` WHERE `ItemType` = 0");
+        "SELECT `item` FROM `creature_loot_template` WHERE `Reference` = 0 UNION "
+        "SELECT `item` FROM `disenchant_loot_template` WHERE `Reference` = 0 UNION "
+        "SELECT `item` FROM `fishing_loot_template` WHERE `Reference` = 0 UNION "
+        "SELECT `item` FROM `gameobject_loot_template` WHERE `Reference` = 0 UNION "
+        "SELECT `item` FROM `item_loot_template` WHERE `Reference` = 0 UNION "
+        "SELECT `item` FROM `milling_loot_template` WHERE `Reference` = 0 UNION "
+        "SELECT `item` FROM `pickpocketing_loot_template` WHERE `Reference` = 0 UNION "
+        "SELECT `item` FROM `prospecting_loot_template` WHERE `Reference` = 0 UNION "
+        "SELECT `item` FROM `reference_loot_template` WHERE `Reference` = 0 UNION "
+        "SELECT `item` FROM `skinning_loot_template` WHERE `Reference` = 0 UNION "
+        "SELECT `item` FROM `spell_loot_template` WHERE `Reference` = 0");
 
     if (result)
     {
@@ -232,10 +232,10 @@ bool AuctionBotSeller::Initialize()
             case ITEM_CLASS_WEAPON:
             {
                 if (uint32 value = sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_MIN_ITEM_LEVEL))
-                    if (prototype->GetBaseItemLevel() < value)
+                    if (prototype->GetItemLevel() < value)
                         continue;
                 if (uint32 value = sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_MAX_ITEM_LEVEL))
-                    if (prototype->GetBaseItemLevel() > value)
+                    if (prototype->GetItemLevel() > value)
                         continue;
                 if (uint32 value = sAuctionBotConfig->GetConfig(CONFIG_AHBOT_ITEM_MIN_REQ_LEVEL))
                     if (prototype->GetBaseRequiredLevel() < static_cast<int32>(value))
@@ -316,10 +316,10 @@ bool AuctionBotSeller::Initialize()
             case ITEM_CLASS_TRADE_GOODS:
             {
                 if (uint32 value = sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_TRADEGOOD_MIN_ITEM_LEVEL))
-                    if (prototype->GetBaseItemLevel() < value)
+                    if (prototype->GetItemLevel() < value)
                         continue;
                 if (uint32 value = sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_TRADEGOOD_MAX_ITEM_LEVEL))
-                    if (prototype->GetBaseItemLevel() > value)
+                    if (prototype->GetItemLevel() > value)
                         continue;
                 break;
             }
@@ -327,10 +327,10 @@ bool AuctionBotSeller::Initialize()
             case ITEM_CLASS_QUIVER:
             {
                 if (uint32 value = sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_CONTAINER_MIN_ITEM_LEVEL))
-                    if (prototype->GetBaseItemLevel() < value)
+                    if (prototype->GetItemLevel() < value)
                         continue;
                 if (uint32 value = sAuctionBotConfig->GetConfig(CONFIG_AHBOT_CLASS_CONTAINER_MAX_ITEM_LEVEL))
-                    if (prototype->GetBaseItemLevel() > value)
+                    if (prototype->GetItemLevel() > value)
                         continue;
                 break;
             }
@@ -357,10 +357,10 @@ bool AuctionBotSeller::Initialize()
     {
         sLog->OutMessage("ahbot", LOG_LEVEL_DEBUG, "Items loaded \tGray\tWhite\tGreen\tBlue\tPurple\tOrange\tYellow");
         for (uint32 i = 0; i < MAX_ITEM_CLASS; ++i)
-            sLog->OutMessage("ahbot", LOG_LEVEL_DEBUG, "\t\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-            _itemPool[0][i].size(), _itemPool[1][i].size(), _itemPool[2][i].size(),
-                _itemPool[3][i].size(), _itemPool[4][i].size(), _itemPool[5][i].size(),
-                _itemPool[6][i].size());
+            sLog->OutMessage("ahbot", LOG_LEVEL_DEBUG, "\t\t%u\t%u\t%u\t%u\t%u\t%u\t%u",
+            (uint32)_itemPool[0][i].size(), (uint32)_itemPool[1][i].size(), (uint32)_itemPool[2][i].size(),
+                (uint32)_itemPool[3][i].size(), (uint32)_itemPool[4][i].size(), (uint32)_itemPool[5][i].size(),
+                (uint32)_itemPool[6][i].size());
     }
 
     TC_LOG_DEBUG("ahbot", "AHBot seller configuration data loaded and initialized");
@@ -602,7 +602,7 @@ void AuctionBotSeller::SetPricesOfItem(ItemTemplate const* itemProto, SellerConf
         else
         {
             float divisor = ((itemProto->GetClass() == ITEM_CLASS_WEAPON || itemProto->GetClass() == ITEM_CLASS_ARMOR) ? 284.0f : 80.0f);
-            float tempLevel = (itemProto->GetBaseItemLevel() == 0 ? 1.0f : itemProto->GetBaseItemLevel());
+            float tempLevel = (itemProto->GetItemLevel() == 0 ? 1.0f : itemProto->GetItemLevel());
             float tempQuality = (itemProto->GetQuality() == 0 ? 1.0f : itemProto->GetQuality());
 
             buyPrice = tempLevel * tempQuality * static_cast<float>(GetBuyModifier(itemProto))* tempLevel / divisor;
@@ -867,7 +867,6 @@ void AuctionBotSeller::AddNewAuctions(SellerConfiguration& config)
 
         // Update the just created item so that if it needs random properties it has them.
         // Ex:  Notched Shortsword of Stamina will only generate as a Notched Shortsword without this.
-        item->SetItemRandomBonusList(GenerateItemRandomBonusListId(itemId));
 
         uint32 buyoutPrice;
         uint32 bidPrice = 0;

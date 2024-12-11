@@ -237,11 +237,7 @@ void CollectionMgr::LoadHeirlooms()
 void CollectionMgr::AddHeirloom(uint32 itemId, uint32 flags)
 {
     if (UpdateAccountHeirlooms(itemId, flags))
-    {
-        _owner->GetPlayer()->UpdateCriteria(CriteriaType::LearnHeirloom, itemId);
-        _owner->GetPlayer()->UpdateCriteria(CriteriaType::LearnAnyHeirloom, 1);
         _owner->GetPlayer()->AddHeirloom(itemId, flags);
-    }
 }
 
 void CollectionMgr::UpgradeHeirloom(uint32 itemId, int32 castItem)
@@ -269,9 +265,6 @@ void CollectionMgr::UpgradeHeirloom(uint32 itemId, int32 castItem)
             bonusId = heirloom->UpgradeItemBonusListID[upgradeLevel];
         }
     }
-
-    for (Item* item : player->GetItemListByEntry(itemId, true))
-        item->AddBonuses(bonusId);
 
     // Get heirloom offset to update only one part of dynamic field
     auto const& heirlooms = player->m_activePlayerData->Heirlooms;
@@ -325,20 +318,6 @@ void CollectionMgr::CheckHeirloomUpgrades(Item* item)
 
             return;
         }
-
-        std::vector<int32> const& bonusListIDs = item->GetBonusListIDs();
-
-        for (uint32 bonusId : bonusListIDs)
-        {
-            if (bonusId != itr->second.bonusId)
-            {
-                item->ClearBonuses();
-                break;
-            }
-        }
-
-        if (std::find(bonusListIDs.begin(), bonusListIDs.end(), int32(itr->second.bonusId)) == bonusListIDs.end())
-            item->AddBonuses(itr->second.bonusId);
     }
 }
 
@@ -395,8 +374,12 @@ bool CollectionMgr::AddMount(uint32 spellId, MountStatusFlags flags, bool factio
     _mounts.insert(MountContainer::value_type(spellId, flags));
 
     // Mount condition only applies to using it, should still learn it.
-    if (!ConditionMgr::IsPlayerMeetingCondition(player, mount->PlayerConditionID))
-        return false;
+    if (mount->PlayerConditionID)
+    {
+        PlayerConditionEntry const* playerCondition = sPlayerConditionStore.LookupEntry(mount->PlayerConditionID);
+        if (playerCondition && !ConditionMgr::IsPlayerMeetingCondition(player, playerCondition))
+            return false;
+    }
 
     if (!learned)
     {
@@ -502,6 +485,7 @@ void CollectionMgr::LoadAccountItemAppearances(PreparedQueryResult knownAppearan
         } while (favoriteAppearances->NextRow());
     }
 
+    /*
     // Static item appearances known by every player
     static uint32 constexpr hiddenAppearanceItems[] =
     {
@@ -526,6 +510,7 @@ void CollectionMgr::LoadAccountItemAppearances(PreparedQueryResult knownAppearan
 
         _appearances->set(hiddenAppearance->ID);
     }
+    */
 }
 
 void CollectionMgr::SaveAccountItemAppearances(LoginDatabaseTransaction trans)
@@ -734,6 +719,10 @@ bool CollectionMgr::CanAddAppearance(ItemModifiedAppearanceEntry const* itemModi
             return false;
     }
 
+    if (itemTemplate->GetQuality() < ITEM_QUALITY_UNCOMMON)
+        if (!itemTemplate->HasFlag(ITEM_FLAG2_IGNORE_QUALITY_FOR_ITEM_VISUAL_SOURCE) || !itemTemplate->HasFlag(ITEM_FLAG3_ACTS_AS_TRANSMOG_HIDDEN_VISUAL_OPTION))
+            return false;
+
     if (itemModifiedAppearance->ID < _appearances->size() && _appearances->test(itemModifiedAppearance->ID))
         return false;
 
@@ -762,8 +751,6 @@ void CollectionMgr::AddItemAppearance(ItemModifiedAppearanceEntry const* itemMod
         owner->RemoveConditionalTransmog(itemModifiedAppearance->ID);
         _temporaryAppearances.erase(temporaryAppearance);
     }
-
-    _owner->GetPlayer()->UpdateCriteria(CriteriaType::LearnAnyTransmog, 1);
 
     if (ItemEntry const* item = sItemStore.LookupEntry(itemModifiedAppearance->ItemID))
     {
@@ -882,11 +869,6 @@ void CollectionMgr::SendFavoriteAppearances() const
 
 void CollectionMgr::LoadTransmogIllusions()
 {
-    Player* owner = _owner->GetPlayer();
-    boost::to_block_range(*_transmogIllusions, DynamicBitsetBlockOutputIterator([owner](uint32 blockValue)
-    {
-        owner->AddIllusionBlock(blockValue);
-    }));
 }
 
 void CollectionMgr::LoadAccountTransmogIllusions(PreparedQueryResult knownTransmogIllusions)
@@ -947,23 +929,8 @@ void CollectionMgr::SaveAccountTransmogIllusions(LoginDatabaseTransaction trans)
     }));
 }
 
-void CollectionMgr::AddTransmogIllusion(uint32 transmogIllusionId)
+void CollectionMgr::AddTransmogIllusion(uint32 /*transmogIllusionId*/)
 {
-    Player* owner = _owner->GetPlayer();
-    if (_transmogIllusions->size() <= transmogIllusionId)
-    {
-        std::size_t numBlocks = _transmogIllusions->num_blocks();
-        _transmogIllusions->resize(transmogIllusionId + 1);
-        numBlocks = _transmogIllusions->num_blocks() - numBlocks;
-        while (numBlocks--)
-            owner->AddIllusionBlock(0);
-    }
-
-    _transmogIllusions->set(transmogIllusionId);
-    uint32 blockIndex = transmogIllusionId / 32;
-    uint32 bitIndex = transmogIllusionId % 32;
-
-    owner->AddIllusionFlag(blockIndex, 1 << bitIndex);
 }
 
 bool CollectionMgr::HasTransmogIllusion(uint32 transmogIllusionId) const

@@ -16,18 +16,14 @@
  */
 
 #include "MapManager.h"
-#include "BattlefieldMgr.h"
 #include "Battleground.h"
-#include "CharacterCache.h"
 #include "Containers.h"
 #include "DatabaseEnv.h"
 #include "DB2Stores.h"
-#include "GarrisonMap.h"
 #include "Group.h"
 #include "InstanceLockMgr.h"
 #include "Log.h"
 #include "Map.h"
-#include "OutdoorPvPMgr.h"
 #include "Player.h"
 #include "ScenarioMgr.h"
 #include "ScriptMgr.h"
@@ -69,8 +65,7 @@ MapManager* MapManager::instance()
 
 Map* MapManager::FindMap_i(uint32 mapId, uint32 instanceId) const
 {
-    auto itr = i_maps.find({ mapId, instanceId });
-    return itr != i_maps.end() ? itr->second.get() : nullptr;
+    return Trinity::Containers::MapGetValuePtr(i_maps, { mapId, instanceId });
 }
 
 Map* MapManager::CreateWorldMap(uint32 mapId, uint32 instanceId)
@@ -86,8 +81,7 @@ Map* MapManager::CreateWorldMap(uint32 mapId, uint32 instanceId)
     return map;
 }
 
-InstanceMap* MapManager::CreateInstance(uint32 mapId, uint32 instanceId, InstanceLock* instanceLock, Difficulty difficulty, TeamId team, Group* group,
-    Optional<uint32> lfgDungeonsId)
+InstanceMap* MapManager::CreateInstance(uint32 mapId, uint32 instanceId, InstanceLock* instanceLock, Difficulty difficulty, TeamId team, Group* group)
 {
     // make sure we have a valid map id
     MapEntry const* entry = sMapStore.LookupEntry(mapId);
@@ -103,7 +97,7 @@ InstanceMap* MapManager::CreateInstance(uint32 mapId, uint32 instanceId, Instanc
     TC_LOG_DEBUG("maps", "MapInstanced::CreateInstance: {}map instance {} for {} created with difficulty {}",
         instanceLock && instanceLock->IsNew() ? "" : "new ", instanceId, mapId, sDifficultyStore.AssertEntry(difficulty)->Name[sWorld->GetDefaultDbcLocale()]);
 
-    InstanceMap* map = new InstanceMap(mapId, i_gridCleanUpDelay, instanceId, difficulty, team, instanceLock, lfgDungeonsId);
+    InstanceMap* map = new InstanceMap(mapId, i_gridCleanUpDelay, instanceId, difficulty, team, instanceLock);
     ASSERT(map->IsDungeon());
 
     map->LoadRespawnTimes();
@@ -129,7 +123,6 @@ BattlegroundMap* MapManager::CreateBattleground(uint32 mapId, uint32 instanceId,
     ASSERT(map->IsBattlegroundOrArena());
     map->SetBG(bg);
     bg->SetBgMap(map);
-    map->InitScriptData();
     map->InitSpawnGroupState();
 
     if (sWorld->getBoolConfig(CONFIG_BATTLEGROUNDMAP_LOAD_GRIDS))
@@ -138,20 +131,12 @@ BattlegroundMap* MapManager::CreateBattleground(uint32 mapId, uint32 instanceId,
     return map;
 }
 
-GarrisonMap* MapManager::CreateGarrison(uint32 mapId, uint32 instanceId, Player* owner)
-{
-    GarrisonMap* map = new GarrisonMap(mapId, i_gridCleanUpDelay, instanceId, owner->GetGUID());
-    ASSERT(map->IsGarrison());
-    map->InitSpawnGroupState();
-    return map;
-}
-
 /*
 - return the right instance for the object, based on its InstanceId
 - create the instance if it's not created already
 - the player is not actually added to the instance (only in InstanceMap::Add)
 */
-Map* MapManager::CreateMap(uint32 mapId, Player* player, Optional<uint32> lfgDungeonsId /*= {}*/)
+Map* MapManager::CreateMap(uint32 mapId, Player* player)
 {
     if (!player)
         return nullptr;
@@ -226,20 +211,12 @@ Map* MapManager::CreateMap(uint32 mapId, Player* player, Optional<uint32> lfgDun
 
         if (!map)
         {
-            map = CreateInstance(mapId, newInstanceId, instanceLock, difficulty, GetTeamIdForTeam(sCharacterCache->GetCharacterTeamByGuid(instanceOwnerGuid)), group,
-                lfgDungeonsId);
+            map = CreateInstance(mapId, newInstanceId, instanceLock, difficulty, player->GetTeamId(), group);
             if (group)
                 group->SetRecentInstance(mapId, instanceOwnerGuid, newInstanceId);
             else
                 player->SetRecentInstance(mapId, newInstanceId);
         }
-    }
-    else if (entry->IsGarrison())
-    {
-        newInstanceId = player->GetGUID().GetCounter();
-        map = FindMap_i(mapId, newInstanceId);
-        if (!map)
-            map = CreateGarrison(mapId, newInstanceId, player);
     }
     else
     {
@@ -253,18 +230,7 @@ Map* MapManager::CreateMap(uint32 mapId, Player* player, Optional<uint32> lfgDun
     }
 
     if (map)
-    {
-        Trinity::unique_trackable_ptr<Map>& ptr = i_maps[{ map->GetId(), map->GetInstanceId() }];
-        if (ptr.get() != map)
-        {
-            ptr.reset(map);
-            map->SetWeakPtr(ptr);
-
-            sScriptMgr->OnCreateMap(map);
-            sOutdoorPvPMgr->CreateOutdoorPvPForMap(map);
-            sBattlefieldMgr->CreateBattlefieldsForMap(map);
-        }
-    }
+        i_maps[{ map->GetId(), map->GetInstanceId() }] = map;
 
     return map;
 }
@@ -327,9 +293,9 @@ void MapManager::Update(uint32 diff)
     MapMapType::iterator iter = i_maps.begin();
     while (iter != i_maps.end())
     {
-        if (iter->second->CanUnload(uint32(i_timer.GetCurrent())))
+        if (iter->second->CanUnload(diff))
         {
-            if (DestroyMap(iter->second.get()))
+            if (DestroyMap(iter->second))
                 iter = i_maps.erase(iter);
             else
                 ++iter;
@@ -359,10 +325,6 @@ bool MapManager::DestroyMap(Map* map)
     if (map->HavePlayers())
         return false;
 
-    sOutdoorPvPMgr->DestroyOutdoorPvPForMap(map);
-    sBattlefieldMgr->DestroyBattlefieldsForMap(map);
-    sScriptMgr->OnDestroyMap(map);
-
     map->UnloadAll();
 
     // Free up the instance id and allow it to be reused for normal dungeons, bgs and arenas
@@ -370,6 +332,7 @@ bool MapManager::DestroyMap(Map* map)
         sMapMgr->FreeInstanceId(map->GetInstanceId());
 
     // erase map
+    delete map;
     return true;
 }
 
@@ -382,15 +345,12 @@ void MapManager::UnloadAll()
 {
     // first unload maps
     for (auto iter = i_maps.begin(); iter != i_maps.end(); ++iter)
-    {
         iter->second->UnloadAll();
 
-        sOutdoorPvPMgr->DestroyOutdoorPvPForMap(iter->second.get());
-        sBattlefieldMgr->DestroyBattlefieldsForMap(iter->second.get());
-        sScriptMgr->OnDestroyMap(iter->second.get());
-    }
-
     // then delete them
+    for (auto iter = i_maps.begin(); iter != i_maps.end(); ++iter)
+        delete iter->second;
+
     i_maps.clear();
 
     if (m_updater.activated())

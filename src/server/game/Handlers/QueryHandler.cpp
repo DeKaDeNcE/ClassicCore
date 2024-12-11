@@ -154,8 +154,8 @@ void WorldSession::HandleQueryCorpseLocation(WorldPackets::Query::QueryCorpseLoc
                 if (std::shared_ptr<TerrainInfo> entranceTerrain = sTerrainMgr.LoadTerrain(corpseMapEntry->CorpseMapID))
                 {
                     mapID = corpseMapEntry->CorpseMapID;
-                    x = corpseMapEntry->Corpse.X;
-                    y = corpseMapEntry->Corpse.Y;
+                    //x = corpseMapEntry->Corpse.X;
+                    //y = corpseMapEntry->Corpse.Y;
                     z = entranceTerrain->GetStaticHeight(player->GetPhaseShift(), mapID, x, y, MAX_HEIGHT);
                 }
             }
@@ -321,31 +321,13 @@ void WorldSession::HandleQueryRealmName(WorldPackets::Query::QueryRealmName& que
     WorldPackets::Query::RealmQueryResponse realmQueryResponse;
     realmQueryResponse.VirtualRealmAddress = queryRealmName.VirtualRealmAddress;
 
-    if (std::shared_ptr<Realm const> realm = sRealmList->GetRealm(queryRealmName.VirtualRealmAddress))
+    Battlenet::RealmHandle realmHandle(queryRealmName.VirtualRealmAddress);
+    if (sRealmList->GetRealmNames(realmHandle, &realmQueryResponse.NameInfo.RealmNameActual, &realmQueryResponse.NameInfo.RealmNameNormalized))
     {
         realmQueryResponse.LookupState = RESPONSE_SUCCESS;
         realmQueryResponse.NameInfo.IsInternalRealm = false;
         realmQueryResponse.NameInfo.IsLocal = queryRealmName.VirtualRealmAddress == GetVirtualRealmAddress();
-        realmQueryResponse.NameInfo.RealmNameActual = realm->Name;
-        realmQueryResponse.NameInfo.RealmNameNormalized = realm->NormalizedName;
     }
     else
         realmQueryResponse.LookupState = RESPONSE_FAILURE;
-
-    SendPacket(realmQueryResponse.Write());
-}
-
-void WorldSession::HandleQueryTreasurePicker(WorldPackets::Query::QueryTreasurePicker const& queryTreasurePicker)
-{
-    Quest const* questInfo = sObjectMgr->GetQuestTemplate(queryTreasurePicker.QuestID);
-    if (!questInfo)
-        return;
-
-    WorldPackets::Query::TreasurePickerResponse treasurePickerResponse;
-    treasurePickerResponse.QuestID = queryTreasurePicker.QuestID;
-    treasurePickerResponse.TreasurePickerID = queryTreasurePicker.TreasurePickerID;
-
-    // TODO: Missing treasure picker implementation
-
-    SendPacket(treasurePickerResponse.Write());
 }

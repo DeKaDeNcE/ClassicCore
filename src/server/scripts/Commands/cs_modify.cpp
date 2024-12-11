@@ -39,8 +39,6 @@ EndScriptData */
 #include "Util.h"
 #include "WorldSession.h"
 
-using namespace Trinity::ChatCommands;
-
 #if TRINITY_COMPILER == TRINITY_COMPILER_GNU
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
@@ -227,7 +225,7 @@ public:
             flag = target->m_unitData->Flags;
 
         if (!npcflag)
-            npcflag = (uint64(target->GetNpcFlags2()) << 32) | target->GetNpcFlags();
+            memcpy(&npcflag.emplace(), target->m_unitData->NpcFlags.begin(), sizeof(uint64));
 
         if (!dyflag)
             dyflag = target->m_objectData->DynamicFlags;
@@ -925,9 +923,12 @@ public:
         return true;
     }
 
-    static bool HandleModifyCurrencyCommand(ChatHandler* handler, CurrencyTypesEntry const* currency, int32 amount)
+    static bool HandleModifyCurrencyCommand(ChatHandler* handler, const char* args)
     {
-        Player* target = handler->getSelectedPlayerOrSelf();
+        if (!*args)
+            return false;
+
+        Player* target = handler->getSelectedPlayer();
         if (!target)
         {
             handler->PSendSysMessage(LANG_PLAYER_NOT_FOUND);
@@ -935,7 +936,16 @@ public:
             return false;
         }
 
-        target->ModifyCurrency(currency->ID, amount, CurrencyGainSource::Cheat, CurrencyDestroyReason::Cheat);
+        uint32 currencyId = atoi(strtok((char*)args, " "));
+        const CurrencyTypesEntry* currencyType =  sCurrencyTypesStore.LookupEntry(currencyId);
+        if (!currencyType)
+            return false;
+
+        uint32 amount = atoi(strtok(nullptr, " "));
+        if (!amount)
+            return false;
+
+        target->ModifyCurrency(currencyId, amount, CurrencyGainSource::Cheat, CurrencyDestroyReason::Cheat);
 
         return true;
     }

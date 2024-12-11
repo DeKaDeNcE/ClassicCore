@@ -30,7 +30,6 @@
 #include "IpAddress.h"
 #include "IPLocation.h"
 #include "Item.h"
-#include "ItemBonusMgr.h"
 #include "Language.h"
 #include "MiscPackets.h"
 #include "MMapFactory.h"
@@ -40,7 +39,7 @@
 #include "ObjectMgr.h"
 #include "PhasingHandler.h"
 #include "Player.h"
-#include "RealmList.h"
+#include "Realm.h"
 #include "SpellAuras.h"
 #include "SpellHistory.h"
 #include "SpellMgr.h"
@@ -292,7 +291,7 @@ public:
             zoneX, zoneY, groundZ, floorZ, map->GetMinHeight(object->GetPhaseShift(), object->GetPositionX(), object->GetPositionY()), haveMap, haveVMap, haveMMap);
 
         LiquidData liquidStatus;
-        ZLiquidStatus status = map->GetLiquidStatus(object->GetPhaseShift(), object->GetPositionX(), object->GetPositionY(), object->GetPositionZ(), {}, &liquidStatus);
+        ZLiquidStatus status = map->GetLiquidStatus(object->GetPhaseShift(), object->GetPositionX(), object->GetPositionY(), object->GetPositionZ(), map_liquidHeaderTypeFlags::AllLiquids, &liquidStatus);
         if (status)
             handler->PSendSysMessage(LANG_LIQUID_STATUS, liquidStatus.level, liquidStatus.depth_level, liquidStatus.entry, uint32(liquidStatus.type_flags.AsUnderlyingType()), status);
 
@@ -964,7 +963,7 @@ public:
             if (Player* caster = handler->GetSession()->GetPlayer())
             {
                 ObjectGuid castId = ObjectGuid::Create<HighGuid::Cast>(SPELL_CAST_SOURCE_NORMAL, player->GetMapId(), SPELL_UNSTUCK_ID, player->GetMap()->GenerateLowGuid<HighGuid::Cast>());
-                Spell::SendCastResult(caster, spellInfo, { SPELL_UNSTUCK_VISUAL, 0 }, castId, SPELL_FAILED_CANT_DO_THAT_RIGHT_NOW);
+                Spell::SendCastResult(caster, spellInfo, { SPELL_UNSTUCK_VISUAL }, castId, SPELL_FAILED_CANT_DO_THAT_RIGHT_NOW);
             }
 
             return false;
@@ -1113,6 +1112,13 @@ public:
         }
 
         uint32 offset = area->AreaBit / PLAYER_EXPLORED_ZONES_BITS;
+        if (offset >= PLAYER_EXPLORED_ZONES_SIZE)
+        {
+            handler->SendSysMessage(LANG_BAD_VALUE);
+            handler->SetSentErrorMessage(true);
+            return false;
+        }
+
         uint64 val = UI64LIT(1) << (area->AreaBit % PLAYER_EXPLORED_ZONES_BITS);
         playerTarget->AddExploredZones(offset, val);
 
@@ -1146,6 +1152,13 @@ public:
         }
 
         uint32 offset = area->AreaBit / PLAYER_EXPLORED_ZONES_BITS;
+        if (offset >= PLAYER_EXPLORED_ZONES_SIZE)
+        {
+            handler->SendSysMessage(LANG_BAD_VALUE);
+            handler->SetSentErrorMessage(true);
+            return false;
+        }
+
         uint64 val = UI64LIT(1) << (area->AreaBit % PLAYER_EXPLORED_ZONES_BITS);
         playerTarget->RemoveExploredZones(offset, val);
 
@@ -1153,63 +1166,78 @@ public:
         return true;
     }
 
-    static bool HandleAddItemCommandHelper(ChatHandler* handler, Player* player, Player* playerTarget,
-        Variant<Hyperlink<item>, uint32, std::string_view> const& itemArg, Optional<int32> countArg,
-        Optional<std::string_view> const& bonusListIdString, Optional<uint8> itemContextArg)
+    static bool HandleAddItemCommand(ChatHandler* handler, char const* args)
     {
+        if (!*args)
+            return false;
+
         uint32 itemId = 0;
-        if (Hyperlink<::item> const* itemLinkData = std::get_if<Hyperlink<::item>>(&itemArg))
-            itemId = (*itemLinkData)->Item->GetId();
-        else if (uint32 const* itemIdPtr = std::get_if<uint32>(&itemArg))
-            itemId = *itemIdPtr;
-        else if (std::string_view const* itemNameText = std::get_if<std::string_view>(&itemArg))
+
+        if (args[0] == '[')                                        // [name] manual form
         {
-            std::string itemName(*itemNameText);
-            if (itemName.starts_with('['))
-                itemName.erase(0, 1);
-            if (itemName.ends_with(']'))
-                itemName.pop_back();
+            char const* itemNameStr = strtok((char*)args, "]");
 
-            auto itr = std::ranges::find_if(sItemSparseStore, [&itemName](ItemSparseEntry const* sparse)
+            if (itemNameStr && itemNameStr[0])
             {
-                for (LocaleConstant i = LOCALE_enUS; i < TOTAL_LOCALES; i = LocaleConstant(i + 1))
-                    if (itemName == sparse->Display[i])
-                        return true;
-                return false;
-            });
+                std::string itemName = itemNameStr+1;
+                auto itr = std::find_if(sItemSparseStore.begin(), sItemSparseStore.end(), [&itemName](ItemSparseEntry const* sparse)
+                {
+                    for (LocaleConstant i = LOCALE_enUS; i < TOTAL_LOCALES; i = LocaleConstant(i + 1))
+                        if (itemName == sparse->Display[i])
+                            return true;
+                    return false;
+                });
 
-            if (itr == sItemSparseStore.end())
-            {
-                handler->PSendSysMessage(LANG_COMMAND_COULDNOTFIND, itemName.c_str());
-                handler->SetSentErrorMessage(true);
-                return false;
+                if (itr == sItemSparseStore.end())
+                {
+                    handler->PSendSysMessage(LANG_COMMAND_COULDNOTFIND, itemNameStr+1);
+                    handler->SetSentErrorMessage(true);
+                    return false;
+                }
+
+                itemId = itr->ID;
             }
+            else
+                return false;
+        }
+        else                                                    // item_id or [name] Shift-click form |color|Hitem:item_id:0:0:0|h[name]|h|r
+        {
+            char const* id = handler->extractKeyFromLink((char*)args, "Hitem");
+            if (!id)
+                return false;
 
-            itemId = itr->ID;
+            itemId = Trinity::StringTo<uint32>(id).value_or(0);
         }
 
-        int32 count = countArg.value_or(1);
+        char const* ccount = strtok(nullptr, " ");
+
+        int32 count = 1;
+
+        if (ccount)
+            count = strtol(ccount, nullptr, 10);
+
         if (count == 0)
             count = 1;
 
         std::vector<int32> bonusListIDs;
+        char const* bonuses = strtok(nullptr, " ");
+
+        char const* context = strtok(nullptr, " ");
 
         // semicolon separated bonuslist ids (parse them after all arguments are extracted by strtok!)
-        if (bonusListIdString)
-            for (std::string_view token : Trinity::Tokenize(*bonusListIdString, ';', false))
+        if (bonuses)
+            for (std::string_view token : Trinity::Tokenize(bonuses, ';', false))
                 if (Optional<int32> bonusListId = Trinity::StringTo<int32>(token); bonusListId && *bonusListId)
                     bonusListIDs.push_back(*bonusListId);
 
         ItemContext itemContext = ItemContext::NONE;
-        if (itemContextArg)
-        {
-            itemContext = ItemContext(*itemContextArg);
-            if (itemContext < ItemContext::Max)
-            {
-                std::vector<int32> contextBonuses = ItemBonusMgr::GetBonusListsForItem(itemId, itemContext);
-                bonusListIDs.insert(bonusListIDs.begin(), contextBonuses.begin(), contextBonuses.end());
-            }
-        }
+        if (context)
+            itemContext = ItemContext(Trinity::StringTo<uint8>(context).value_or(0));
+
+        Player* player = handler->GetSession()->GetPlayer();
+        Player* playerTarget = handler->getSelectedPlayer();
+        if (!playerTarget)
+            playerTarget = player;
 
         ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(itemId);
         if (!itemTemplate)
@@ -1262,8 +1290,7 @@ public:
             return false;
         }
 
-        Item* item = playerTarget->StoreNewItem(dest, itemId, true, GenerateItemRandomBonusListId(itemId), GuidSet(), itemContext,
-            bonusListIDs.empty() ? nullptr : &bonusListIDs);
+        Item* item = playerTarget->StoreNewItem(dest, itemId, true, sItemEnchantmentMgr->GenerateRandomProperties(itemId), GuidSet(), itemContext);
 
         // remove binding (let GM give it to another player later)
         if (player == playerTarget)
@@ -1285,48 +1312,169 @@ public:
         return true;
     }
 
-    static bool HandleAddItemCommand(ChatHandler* handler,
-        Variant<Hyperlink<::item>, uint32, std::string_view> const& item, Optional<int32> countArg,
-        Optional<std::string_view> const& bonusListIdString, Optional<uint8> itemContextArg)
+    static bool HandleAddItemToCommand(ChatHandler* handler, char const* args)
     {
-        Player* player = handler->GetSession()->GetPlayer();
-        Player* playerTarget = handler->getSelectedPlayerOrSelf();
+        if (!*args)
+            return false;
 
-        return HandleAddItemCommandHelper(handler, player, playerTarget, item, countArg, bonusListIdString, itemContextArg);
-    }
-
-    static bool HandleAddItemToCommand(ChatHandler* handler, PlayerIdentifier const& target,
-        Variant<Hyperlink<::item>, uint32, std::string_view> const& item, Optional<int32> countArg,
-        Optional<std::string_view> const& bonusListIdString, Optional<uint8> itemContextArg)
-    {
         Player* player = handler->GetSession()->GetPlayer();
-        if (!target.IsConnected())
+        Player* playerTarget = nullptr;
+        if (!handler->extractPlayerTarget((char*)args, &playerTarget))
         {
-            handler->SendSysMessage(LANG_PLAYER_NOT_FOUND);
             handler->SetSentErrorMessage(true);
             return false;
         }
 
-        return HandleAddItemCommandHelper(handler, player, target.GetConnectedPlayer(), item, countArg, bonusListIdString, itemContextArg);
+        char* tailArgs = strtok(nullptr, "");
+        if (!tailArgs)
+            return false;
+
+        uint32 itemId = 0;
+
+        if (tailArgs[0] == '[')                                        // [name] manual form
+        {
+            char const* itemNameStr = strtok(tailArgs, "]");
+
+            if (itemNameStr && itemNameStr[0])
+            {
+                std::string itemName = itemNameStr+1;
+                auto itr = std::find_if(sItemSparseStore.begin(), sItemSparseStore.end(), [&itemName](ItemSparseEntry const* sparse)
+                {
+                    for (LocaleConstant i = LOCALE_enUS; i < TOTAL_LOCALES; i = LocaleConstant(i + 1))
+                        if (itemName == sparse->Display[i])
+                            return true;
+                    return false;
+                });
+
+                if (itr == sItemSparseStore.end())
+                {
+                    handler->PSendSysMessage(LANG_COMMAND_COULDNOTFIND, itemNameStr+1);
+                    handler->SetSentErrorMessage(true);
+                    return false;
+                }
+
+                itemId = itr->ID;
+            }
+            else
+                return false;
+        }
+        else                                                    // item_id or [name] Shift-click form |color|Hitem:item_id:0:0:0|h[name]|h|r
+        {
+            char const* id = handler->extractKeyFromLink(tailArgs, "Hitem");
+            if (!id)
+                return false;
+
+            itemId = Trinity::StringTo<uint32>(id).value_or(0);
+        }
+
+        char const* ccount = strtok(nullptr, " ");
+
+        int32 count = 1;
+
+        if (ccount)
+            count = strtol(ccount, nullptr, 10);
+
+        if (count == 0)
+            count = 1;
+
+        std::vector<int32> bonusListIDs;
+        char const* bonuses = strtok(nullptr, " ");
+
+        char const* context = strtok(nullptr, " ");
+
+        // semicolon separated bonuslist ids (parse them after all arguments are extracted by strtok!)
+        if (bonuses)
+            for (std::string_view token : Trinity::Tokenize(bonuses, ';', false))
+                if (Optional<int32> bonusListId = Trinity::StringTo<int32>(token); bonusListId && *bonusListId)
+                    bonusListIDs.push_back(*bonusListId);
+
+        ItemContext itemContext = ItemContext::NONE;
+        if (context)
+            itemContext = ItemContext(Trinity::StringTo<uint8>(context).value_or(0));
+
+        ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(itemId);
+        if (!itemTemplate)
+        {
+            handler->PSendSysMessage(LANG_COMMAND_ITEMIDINVALID, itemId);
+            handler->SetSentErrorMessage(true);
+            return false;
+        }
+
+        // Subtract
+        if (count < 0)
+        {
+            uint32 destroyedItemCount = playerTarget->DestroyItemCount(itemId, -count, true, false);
+
+            if (destroyedItemCount > 0)
+            {
+                // output the amount of items successfully destroyed
+                handler->PSendSysMessage(LANG_REMOVEITEM, itemId, destroyedItemCount, handler->GetNameLink(playerTarget).c_str());
+
+                // check to see if we were unable to destroy all of the amount requested.
+                uint32 unableToDestroyItemCount = -count - destroyedItemCount;
+                if (unableToDestroyItemCount > 0)
+                {
+                    // output message for the amount of items we couldn't destroy
+                    handler->PSendSysMessage(LANG_REMOVEITEM_FAILURE, itemId, unableToDestroyItemCount, handler->GetNameLink(playerTarget).c_str());
+                }
+            }
+            else
+            {
+                // failed to destroy items of the amount requested
+                handler->PSendSysMessage(LANG_REMOVEITEM_FAILURE, itemId, -count, handler->GetNameLink(playerTarget).c_str());
+            }
+
+            return true;
+        }
+
+        // Adding items
+        uint32 noSpaceForCount = 0;
+
+        // check space and find places
+        ItemPosCountVec dest;
+        InventoryResult msg = playerTarget->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, itemId, count, &noSpaceForCount);
+        if (msg != EQUIP_ERR_OK)                               // convert to possible store amount
+            count -= noSpaceForCount;
+
+        if (count == 0 || dest.empty())                         // can't add any
+        {
+            handler->PSendSysMessage(LANG_ITEM_CANNOT_CREATE, itemId, noSpaceForCount);
+            handler->SetSentErrorMessage(true);
+            return false;
+        }
+
+        Item* item = playerTarget->StoreNewItem(dest, itemId, true, sItemEnchantmentMgr->GenerateRandomProperties(itemId), GuidSet(), itemContext);
+
+        // remove binding (let GM give it to another player later)
+        if (player == playerTarget)
+            for (ItemPosCountVec::const_iterator itr = dest.begin(); itr != dest.end(); ++itr)
+                if (Item* item1 = player->GetItemByPos(itr->pos))
+                    item1->SetBinding(false);
+
+        if (count > 0 && item)
+        {
+            player->SendNewItem(item, count, false, true);
+            if (player != playerTarget)
+                playerTarget->SendNewItem(item, count, true, false);
+        }
+
+        if (noSpaceForCount > 0)
+            handler->PSendSysMessage(LANG_ITEM_CANNOT_CREATE, itemId, noSpaceForCount);
+
+        return true;
     }
 
-    static bool HandleAddItemSetCommand(ChatHandler* handler, Variant<Hyperlink<itemset>, uint32> itemSetId, Optional<std::string_view> bonuses, Optional<uint8> context)
+    static bool HandleAddItemSetCommand(ChatHandler* handler, Variant<Hyperlink<itemset>, uint32> itemSetId, Optional<std::string_view> /*bonuses*/, Optional<uint8> context)
     {
         // prevent generation all items with itemset field value '0'
         if (*itemSetId == 0)
         {
-            handler->PSendSysMessage(LANG_NO_ITEMS_FROM_ITEMSET_FOUND, *itemSetId);
+            handler->PSendSysMessage(LANG_NO_ITEMS_FROM_ITEMSET_FOUND, itemSetId);
             handler->SetSentErrorMessage(true);
             return false;
         }
 
         std::vector<int32> bonusListIDs;
-
-        // semicolon separated bonuslist ids (parse them after all arguments are extracted by strtok!)
-        if (bonuses)
-            for (std::string_view token : Trinity::Tokenize(*bonuses, ';', false))
-                if (Optional<int32> bonusListId = Trinity::StringTo<int32>(token); bonusListId && *bonusListId)
-                    bonusListIDs.push_back(*bonusListId);
 
         ItemContext itemContext = ItemContext::NONE;
         if (context)
@@ -1349,15 +1497,7 @@ public:
             InventoryResult msg = playerTarget->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, itemTemplatePair.first, 1);
             if (msg == EQUIP_ERR_OK)
             {
-                std::vector<int32> bonusListIDsForItem = bonusListIDs; // copy, bonuses for each depending on context might be different for each item
-                if (itemContext < ItemContext::Max)
-                {
-                    std::vector<int32> contextBonuses = ItemBonusMgr::GetBonusListsForItem(itemTemplatePair.first, itemContext);
-                    bonusListIDsForItem.insert(bonusListIDsForItem.begin(), contextBonuses.begin(), contextBonuses.end());
-                }
-
-                Item* item = playerTarget->StoreNewItem(dest, itemTemplatePair.first, true, {}, GuidSet(), itemContext,
-                    bonusListIDsForItem.empty() ? nullptr : &bonusListIDsForItem);
+                Item* item = playerTarget->StoreNewItem(dest, itemTemplatePair.first, true, sItemEnchantmentMgr->GenerateRandomProperties(itemTemplatePair.first), GuidSet(), itemContext);
                 if (!item)
                     continue;
 
@@ -1378,7 +1518,7 @@ public:
 
         if (!found)
         {
-            handler->PSendSysMessage(LANG_NO_ITEMS_FROM_ITEMSET_FOUND, *itemSetId);
+            handler->PSendSysMessage(LANG_NO_ITEMS_FROM_ITEMSET_FOUND, itemSetId);
             handler->SetSentErrorMessage(true);
             return false;
         }
@@ -1388,7 +1528,7 @@ public:
 
     static bool HandleBankCommand(ChatHandler* handler)
     {
-        handler->GetSession()->SendShowBank(handler->GetSession()->GetPlayer()->GetGUID(), PlayerInteractionType::Banker);
+        handler->GetSession()->SendShowBank(handler->GetSession()->GetPlayer()->GetGUID());
         return true;
     }
 
@@ -1431,7 +1571,7 @@ public:
         SkillLineEntry const* skillLine = sSkillLineStore.LookupEntry(skillId);
         if (!skillLine)
         {
-            handler->PSendSysMessage(LANG_INVALID_SKILL_ID, *skillId);
+            handler->PSendSysMessage(LANG_INVALID_SKILL_ID, skillId);
             handler->SetSentErrorMessage(true);
             return false;
         }
@@ -1449,7 +1589,7 @@ public:
         // add the skill to the player's book with step 1 (which is the first rank, in most cases something
         // like 'Apprentice <skill>'.
         target->SetSkill(skillId, targetHasSkill ? target->GetSkillStep(skillId) : 1, level, max);
-        handler->PSendSysMessage(LANG_SET_SKILL, *skillId, skillLine->DisplayName[handler->GetSessionDbcLocale()], handler->GetNameLink(target).c_str(), level, max);
+        handler->PSendSysMessage(LANG_SET_SKILL, skillId, skillLine->DisplayName[handler->GetSessionDbcLocale()], handler->GetNameLink(target).c_str(), level, max);
         return true;
     }
 
@@ -1624,7 +1764,7 @@ public:
 
         // Query the prepared statement for login data
         LoginDatabasePreparedStatement* stmt2 = LoginDatabase.GetPreparedStatement(LOGIN_SEL_PINFO);
-        stmt2->setInt32(0, int32(sRealmList->GetCurrentRealmId().Realm));
+        stmt2->setInt32(0, int32(realm.Id.Realm));
         stmt2->setUInt32(1, accId);
         PreparedQueryResult result = LoginDatabase.Query(stmt2);
 
@@ -2205,7 +2345,7 @@ public:
 
         // non-melee damage
 
-        SpellNonMeleeDamage damageInfo(attacker, target, *spellInfo, { (*spellInfo)->GetSpellXSpellVisualId(handler->GetSession()->GetPlayer()), 0 }, (*spellInfo)->SchoolMask);
+        SpellNonMeleeDamage damageInfo(attacker, target, *spellInfo, { (*spellInfo)->GetSpellXSpellVisualId(handler->GetSession()->GetPlayer()) }, (*spellInfo)->SchoolMask);
         damageInfo.damage = damage;
         Unit::DealDamageMods(damageInfo.attacker, damageInfo.target, damageInfo.damage, &damageInfo.absorb);
         target->DealSpellDamage(&damageInfo, true);

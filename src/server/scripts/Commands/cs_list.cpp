@@ -80,7 +80,7 @@ public:
         CreatureTemplate const* cInfo = sObjectMgr->GetCreatureTemplate(creatureId);
         if (!cInfo)
         {
-            handler->PSendSysMessage(LANG_COMMAND_INVALIDCREATUREID, *creatureId);
+            handler->PSendSysMessage(LANG_COMMAND_INVALIDCREATUREID, creatureId);
             handler->SetSentErrorMessage(true);
             return false;
         }
@@ -145,7 +145,7 @@ public:
             while (result->NextRow());
         }
 
-        handler->PSendSysMessage(LANG_COMMAND_LISTCREATUREMESSAGE, *creatureId, creatureCount);
+        handler->PSendSysMessage(LANG_COMMAND_LISTCREATUREMESSAGE, creatureId, creatureCount);
 
         return true;
     }
@@ -192,8 +192,6 @@ public:
                     itemPos = "[equipped]";
                 else if (Player::IsInventoryPos(itemBag, itemSlot))
                     itemPos = "[in inventory]";
-                else if (Player::IsReagentBankPos(itemBag, itemSlot))
-                    itemPos = "[in reagent bank]";
                 else if (Player::IsBankPos(itemBag, itemSlot))
                     itemPos = "[in bank]";
                 else
@@ -350,7 +348,7 @@ public:
         GameObjectTemplate const* gInfo = sObjectMgr->GetGameObjectTemplate(gameObjectId);
         if (!gInfo)
         {
-            handler->PSendSysMessage(LANG_COMMAND_LISTOBJINVALIDID, *gameObjectId);
+            handler->PSendSysMessage(LANG_COMMAND_LISTOBJINVALIDID, gameObjectId);
             handler->SetSentErrorMessage(true);
             return false;
         }
@@ -416,7 +414,7 @@ public:
             while (result->NextRow());
         }
 
-        handler->PSendSysMessage(LANG_COMMAND_LISTOBJMESSAGE, *gameObjectId, objectCount);
+        handler->PSendSysMessage(LANG_COMMAND_LISTOBJMESSAGE, gameObjectId, objectCount);
 
         return true;
     }

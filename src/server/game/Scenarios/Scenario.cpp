@@ -87,13 +87,7 @@ void Scenario::CompleteStep(ScenarioStepEntry const* step)
 
 void Scenario::CompleteScenario()
 {
-    SendPacket(WorldPackets::Scenario::ScenarioCompleted(_data->Entry->ID).Write());
-
-    DoForAllPlayers([&](Player* player)
-    {
-        player->UpdateCriteria(CriteriaType::CompleteAnyScenario, 1);
-        player->UpdateCriteria(CriteriaType::CompleteScenario, _data->Entry->ID);
-    });
+    return SendPacket(WorldPackets::Scenario::ScenarioCompleted(_data->Entry->ID).Write());
 }
 
 void Scenario::SetStep(ScenarioStepEntry const* step)

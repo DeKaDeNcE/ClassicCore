@@ -438,8 +438,8 @@ void WorldSession::HandleAuctionPlaceBid(WorldPackets::AuctionHouse::AuctionPlac
     if (canBuyout && placeBid.BidAmount == auction->BuyoutOrUnitPrice)
     {
         // buyout
-        auctionHouse->SendAuctionSold(auction, nullptr, trans);
         auctionHouse->SendAuctionWon(auction, player, trans);
+        auctionHouse->SendAuctionSold(auction, nullptr, trans);
 
         auctionHouse->RemoveAuction(trans, auction);
     }
@@ -992,7 +992,7 @@ void WorldSession::HandleAuctionSetFavoriteItem(WorldPackets::AuctionHouse::Auct
 }
 
 //this void causes that auction window is opened
-void WorldSession::SendAuctionHello(ObjectGuid guid, Unit const* unit)
+void WorldSession::SendAuctionHello(ObjectGuid guid, Creature* unit)
 {
     if (GetPlayer()->GetLevel() < sWorld->getIntConfig(CONFIG_AUCTION_LEVEL_REQ))
     {

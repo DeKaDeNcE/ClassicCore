@@ -271,6 +271,7 @@ struct boss_blood_council_controller : public BossAI
             return;
         }
 
+        me->SetCombatPulseDelay(5);
         me->setActive(true);
         DoZoneInCombat();
         instance->SetBossState(DATA_BLOOD_PRINCE_COUNCIL, IN_PROGRESS);
@@ -441,6 +442,7 @@ struct BloodPrincesBossAI : public BossAI
     {
         events.Reset();
         summons.DespawnAll();
+        me->SetCombatPulseDelay(0);
 
         me->SetImmuneToPC(false);
         _isEmpowered = false;
@@ -450,6 +452,7 @@ struct BloodPrincesBossAI : public BossAI
 
     void JustEngagedWith(Unit* /*who*/) override
     {
+        me->SetCombatPulseDelay(5);
         me->setActive(true);
         if (Creature* controller = ObjectAccessor::GetCreature(*me, instance->GetGuidData(DATA_BLOOD_PRINCES_CONTROL)))
             DoZoneInCombat(controller);

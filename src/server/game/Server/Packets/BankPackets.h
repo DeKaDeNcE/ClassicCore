@@ -22,8 +22,6 @@
 #include "ItemPacketsCommon.h"
 #include "ObjectGuid.h"
 
-enum class PlayerInteractionType : int32;
-
 namespace WorldPackets
 {
     namespace Bank
@@ -36,7 +34,6 @@ namespace WorldPackets
             void Read() override;
 
             WorldPackets::Item::InvUpdate Inv;
-            ::BankType BankType = ::BankType::Character;
             uint8 Bag = 0;
             uint8 Slot = 0;
         };
@@ -97,17 +94,6 @@ namespace WorldPackets
             void Read() override;
 
             ObjectGuid Banker;
-        };
-
-        class BankerActivate final : public ClientPacket
-        {
-        public:
-            explicit BankerActivate(WorldPacket&& packet) : ClientPacket(CMSG_BANKER_ACTIVATE, std::move(packet)) { }
-
-            void Read() override;
-
-            ObjectGuid Banker;
-            PlayerInteractionType InteractionType = { };
         };
     }
 }

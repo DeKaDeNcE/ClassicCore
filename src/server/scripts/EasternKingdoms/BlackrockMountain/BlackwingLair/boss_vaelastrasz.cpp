@@ -84,7 +84,6 @@ struct boss_vaelastrasz : public BossAI
     {
         _Reset();
 
-        me->SetSpawnHealth();
         me->SetStandState(UNIT_STAND_STATE_DEAD);
         Initialize();
     }
@@ -94,6 +93,7 @@ struct boss_vaelastrasz : public BossAI
         BossAI::JustEngagedWith(who);
 
         DoCast(me, SPELL_ESSENCEOFTHERED);
+        me->SetHealth(me->CountPctFromMaxHealth(30));
         // now drop damage requirement to be able to take loot
         me->ResetPlayerDamageReq();
 

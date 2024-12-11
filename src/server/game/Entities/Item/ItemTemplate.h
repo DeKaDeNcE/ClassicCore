@@ -109,9 +109,6 @@ enum ItemSpelltriggerType
     ITEM_SPELLTRIGGER_ON_PICKUP         = 5,
     ITEM_SPELLTRIGGER_ON_LEARN          = 6,                  // used in ItemEffect in second slot with spell_id with SPELL_GENERIC_LEARN in spell_1
     ITEM_SPELLTRIGGER_ON_LOOTED         = 7,
-    ITEM_SPELLTRIGGER_TEACH_MOUNT       = 8,
-    ITEM_SPELLTRIGGER_ON_PICKUP_FORCED  = 9,
-    ITEM_SPELLTRIGGER_ON_LOOTED_FORCED  = 10,
 };
 
 enum ItemBondingType
@@ -121,12 +118,9 @@ enum ItemBondingType
     BIND_ON_EQUIP                               = 2,
     BIND_ON_USE                                 = 3,
     BIND_QUEST                                  = 4,
-    BIND_UNUSED_1                               = 5,
-    BIND_UNUSED_2                               = 6,
-    BIND_WOW_ACCOUNT                            = 7,
-    BIND_BNET_ACCOUNT                           = 8,
-    BIND_BNET_ACCOUNT_UNTIL_EQUIPPED            = 9,
 };
+
+#define MAX_BIND_TYPE                             5
 
 /* /// @todo: Requiring actual cases in which using (an) item isn't allowed while shapeshifted. Else, this flag would need an implementation.
     ITEM_FLAG_USE_WHEN_SHAPESHIFTED    = 0x00800000, // Item can be used in shapeshift forms */
@@ -349,34 +343,15 @@ enum BAG_FAMILY_MASK
 
 enum SocketColor
 {
+    SOCKET_COLOR_NONE                           = 0x000000,
     SOCKET_COLOR_META                           = 0x000001,
     SOCKET_COLOR_RED                            = 0x000002,
     SOCKET_COLOR_YELLOW                         = 0x000004,
     SOCKET_COLOR_BLUE                           = 0x000008,
-    SOCKET_COLOR_HYDRAULIC                      = 0x000010, // not used
-    SOCKET_COLOR_COGWHEEL                       = 0x000020,
-    SOCKET_COLOR_PRISMATIC                      = 0x00000E,
-    SOCKET_COLOR_RELIC_IRON                     = 0x000040,
-    SOCKET_COLOR_RELIC_BLOOD                    = 0x000080,
-    SOCKET_COLOR_RELIC_SHADOW                   = 0x000100,
-    SOCKET_COLOR_RELIC_FEL                      = 0x000200,
-    SOCKET_COLOR_RELIC_ARCANE                   = 0x000400,
-    SOCKET_COLOR_RELIC_FROST                    = 0x000800,
-    SOCKET_COLOR_RELIC_FIRE                     = 0x001000,
-    SOCKET_COLOR_RELIC_WATER                    = 0x002000,
-    SOCKET_COLOR_RELIC_LIFE                     = 0x004000,
-    SOCKET_COLOR_RELIC_WIND                     = 0x008000,
-    SOCKET_COLOR_RELIC_HOLY                     = 0x010000,
-    SOCKET_COLOR_PUNCHCARD_RED                  = 0x020000,
-    SOCKET_COLOR_PUNCHCARD_YELLOW               = 0x040000,
-    SOCKET_COLOR_PUNCHCARD_BLUE                 = 0x080000,
-    SOCKET_COLOR_DOMINATION                     = 0x100000,
-    SOCKET_COLOR_CYPHER                         = 0x200000,
-    SOCKET_COLOR_TINKER                         = 0x400000,
-    SOCKET_COLOR_PRIMORDIAL                     = 0x800000,
+    SOCKET_COLOR_PRISMATIC                      = SOCKET_COLOR_RED | SOCKET_COLOR_YELLOW | SOCKET_COLOR_BLUE
 };
 
-extern int32 const SocketColorToGemTypeMask[26];
+extern int32 const SocketColorToGemTypeMask[6];
 
 #define SOCKET_COLOR_STANDARD (SOCKET_COLOR_RED | SOCKET_COLOR_YELLOW | SOCKET_COLOR_BLUE)
 
@@ -420,20 +395,6 @@ enum InventoryType : uint8
 };
 
 #define MAX_INVTYPE                               35
-
-constexpr std::array<InventoryType, 10> InventoryTypesEquipable =
-{
-    INVTYPE_WEAPON,
-    INVTYPE_SHIELD,
-    INVTYPE_RANGED,
-    INVTYPE_2HWEAPON,
-    INVTYPE_WEAPONMAINHAND,
-    INVTYPE_WEAPONOFFHAND,
-    INVTYPE_HOLDABLE,
-    INVTYPE_THROWN,
-    INVTYPE_RANGEDRIGHT,
-    INVTYPE_PROFESSION_TOOL
-};
 
 enum ItemClass : uint8
 {
@@ -785,27 +746,6 @@ enum ItemLevelConstants : uint32
     MAX_ITEM_LEVEL = 1300
 };
 
-enum ItemIdConstants
-{
-    ITEM_HEARTHSTONE                             = 6948,    // Hearthstone
-    ITEM_GARRISON_HEARTHSTONE                    = 110560,  // Garrison Hearthstone
-    ITEM_DALARAN_HEARTHSTONE                     = 140192,  // Dalaran Hearthstone
-    ITEM_FLIGHT_MASTER_WHISTLE                   = 141605,  // Flight Master Whistle
-
-    ITEM_RED_RIBBONED_WRAPPING_PAPER             = 5042,    // Red Ribboned Wrapping Paper
-    ITEM_RED_RIBBONED_GIFT                       = 5043,    // Red Ribboned Gift
-    ITEM_BLUE_RIBBONED_WRAPPING_PAPER            = 5048,    // Blue Ribboned Wrapping Paper
-    ITEM_BLUE_RIBBONED_GIFT                      = 5044,    // Blue Ribboned Gift
-    ITEM_BLUE_RIBBONED_HOLIDAY_WRAPPING_PAPER    = 17303,   // Blue Ribboned Wrapping Paper
-    ITEM_BLUE_RIBBONED_HOLIDAY_GIFT              = 17302,   // Blue Ribboned Holiday Gift
-    ITEM_GREEN_RIBBONED_WRAPPING_PAPER           = 17304,   // Green Ribboned Wrapping Paper
-    ITEM_GREEN_RIBBONED_HOLIDAY_GIFT             = 17305,   // Green Ribboned Holiday Gift
-    ITEM_PURPLE_RIBBONED_WRAPPING_PAPER          = 17307,   // Purple Ribboned Wrapping Paper
-    ITEM_PURPLE_RIBBONED_HOLIDAY_GIFT            = 17308,   // Purple Ribboned Holiday Gift
-    ITEM_EMPTY_WRAPPER                           = 21830,   // Empty Wrapper
-    ITEM_WRAPPED_GIFT                            = 21831,   // Wrappered Gift
-};
-
 class Player;
 struct ChrSpecializationEntry;
 
@@ -827,7 +767,7 @@ struct TC_GAME_API ItemTemplate
     InventoryType GetInventoryType() const { return InventoryType(ExtendedData->InventoryType); }
     int32 GetAllowableClass() const { return ExtendedData->AllowableClass; }
     Trinity::RaceMask<int64> GetAllowableRace() const { return ExtendedData->AllowableRace; }
-    uint32 GetBaseItemLevel() const { return ExtendedData->ItemLevel; }
+    uint32 GetItemLevel() const { return ExtendedData->ItemLevel; }
     int32 GetBaseRequiredLevel() const { return ExtendedData->RequiredLevel; }
     uint32 GetRequiredSkill() const { return ExtendedData->RequiredSkill; }
     uint32 GetRequiredSkillRank() const { return ExtendedData->RequiredSkillRank; }
@@ -837,6 +777,7 @@ struct TC_GAME_API ItemTemplate
     uint32 GetMaxCount() const { return ExtendedData->MaxCount; }
     uint32 GetContainerSlots() const { return ExtendedData->ContainerSlots; }
     int32 GetStatModifierBonusStat(uint32 index) const { ASSERT(index < MAX_ITEM_PROTO_STATS); return ExtendedData->StatModifierBonusStat[index]; }
+    int32 GetStatModifierBonusAmount(uint32 index) const { ASSERT(index < MAX_ITEM_PROTO_STATS); return ExtendedData->StatModifierBonusAmount[index]; }
     int32 GetStatPercentEditor(uint32 index) const { ASSERT(index < MAX_ITEM_PROTO_STATS); return ExtendedData->StatPercentEditor[index]; }
     float GetStatPercentageOfSocket(uint32 index) const { ASSERT(index < MAX_ITEM_PROTO_STATS); return ExtendedData->StatPercentageOfSocket[index]; }
     uint32 GetScalingStatContentTuning() const { return ExtendedData->ContentTuningID; }
@@ -864,6 +805,14 @@ struct TC_GAME_API ItemTemplate
     float  GetDmgVariance() const { return ExtendedData->DmgVariance; }
     uint8 GetArtifactID() const { return ExtendedData->ArtifactID; }
     uint8 GetRequiredExpansion() const { return ExtendedData->ExpansionID; }
+    int16 GetResistance(SpellSchools school) const { return ExtendedData->Resistances[school]; }
+    int16 GetShieldBlockValue(uint32 itemLevel) const;
+    uint16 GetScalingStatDistributionID() const { return ExtendedData->ScalingStatDistributionID; }
+    int32 GetScalingStatValue() const { return BasicData->ScalingStatValue; }
+    uint16 GetMinDamage(uint8 index) const { return BasicData->MinDamage[index]; }
+    uint16 GetMaxDamage(uint8 index) const { return BasicData->MaxDamage[index]; }
+    uint16 GetRandomSuffixGroupID() const { return BasicData->ItemRandomSuffixGroupID; }
+    uint16 GetRandomSelect() const { return BasicData->RandomSelect; }
 
     uint32 MaxDurability;
     std::vector<ItemEffectEntry const*> Effects;
@@ -875,7 +824,6 @@ struct TC_GAME_API ItemTemplate
     uint32 MaxMoneyLoot;
     uint32 FlagsCu;
     float SpellPPMRate;
-    uint32 RandomBonusListTemplateId;
     std::bitset<MAX_CLASSES * MAX_SPECIALIZATIONS> Specializations[3];  // one set for 1-40 level range and another for 41-109 and one for 110
     uint32 ItemSpecClassMask;
     int32 QuestLogItemId;
@@ -916,9 +864,8 @@ struct TC_GAME_API ItemTemplate
     inline bool HasFlag(ItemFlagsCustom customFlag) const { return (FlagsCu & customFlag) != 0; }
 
     char const* GetDefaultLocaleName() const;
-    uint32 GetArmor(uint32 itemLevel) const;
-    float GetDPS(uint32 itemLevel) const;
-    void GetDamage(uint32 itemLevel, float& minDamage, float& maxDamage) const;
+    float GetDPS() const;
+    void GetDamage(float& minDamage, float& maxDamage) const;
     bool IsUsableByLootSpecialization(Player const* player, bool alwaysAllowBoundToAccount) const;
     static std::size_t CalculateItemSpecBit(ChrSpecializationEntry const* spec);
 };

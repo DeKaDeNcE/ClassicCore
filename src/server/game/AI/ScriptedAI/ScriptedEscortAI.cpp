@@ -253,16 +253,17 @@ void EscortAI::UpdateEscortAI(uint32 /*diff*/)
 
 void EscortAI::AddWaypoint(uint32 id, float x, float y, float z, bool run)
 {
-    AddWaypoint(id, x, y, z, 0.0f, {}, run);
+    AddWaypoint(id, x, y, z, 0.0f, 0s, run);
 }
 
-void EscortAI::AddWaypoint(uint32 id, float x, float y, float z, float orientation/* = 0*/, Optional<Milliseconds> waitTime/* = {}*/, bool run /*= false*/)
+void EscortAI::AddWaypoint(uint32 id, float x, float y, float z, float orientation/* = 0*/, Milliseconds waitTime/* = 0s*/, bool run /*= false*/)
 {
     Trinity::NormalizeMapCoord(x);
     Trinity::NormalizeMapCoord(y);
 
-    WaypointNode& waypoint = _path.Nodes.emplace_back(id, x, y, z, orientation, waitTime);
+    WaypointNode waypoint(id, x, y, z, orientation, waitTime.count());
     waypoint.MoveType = run ? WaypointMoveType::Run : WaypointMoveType::Walk;
+    _path.Nodes.push_back(std::move(waypoint));
 }
 
 void EscortAI::ResetPath()

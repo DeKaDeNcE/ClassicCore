@@ -30,9 +30,9 @@ namespace WorldPackets
     {
         struct SpellLogPowerData
         {
-            SpellLogPowerData(int8 powerType, int32 amount, int32 cost) : PowerType(powerType), Amount(amount), Cost(cost) { }
+            SpellLogPowerData(int32 powerType, int32 amount, int32 cost) : PowerType(powerType), Amount(amount), Cost(cost) { }
 
-            int8 PowerType = 0;
+            int32 PowerType = 0;
             int32 Amount = 0;
             int32 Cost = 0;
         };
@@ -86,7 +86,7 @@ namespace WorldPackets
         struct SpellCastVisual
         {
             int32 SpellXSpellVisualID = 0;
-            int32 ScriptVisualID = 0;
+            //int32 ScriptVisualID = 0;
         };
 
         struct SpellSupportInfo

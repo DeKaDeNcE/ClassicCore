@@ -164,14 +164,7 @@ public:
     }
 
     /// Marks the socket for closing after write buffer becomes empty
-    void DelayedCloseSocket()
-    {
-        if (_closing.exchange(true))
-            return;
-
-        if (_writeQueue.empty())
-            CloseSocket();
-    }
+    void DelayedCloseSocket() { _closing = true; }
 
     MessageBuffer& GetReadBuffer() { return _readBuffer; }
 

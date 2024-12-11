@@ -38,8 +38,6 @@ void BaseDatabaseResultValueConverter::LogTruncation(char const* getter, QueryRe
         case DatabaseFieldTypes::Float: expectedAccessor = "Field::GetFloat"; break;
         case DatabaseFieldTypes::Double: expectedAccessor = "Field::GetDouble"; break;
         case DatabaseFieldTypes::Decimal: expectedAccessor = "Field::GetDouble or Field::GetString"; break;
-        case DatabaseFieldTypes::Date: expectedAccessor = "Field::GetDate"; break;
-        case DatabaseFieldTypes::Time: expectedAccessor = "Field::GetTime"; break;
         case DatabaseFieldTypes::Binary: expectedAccessor = "Field::GetString or Field::GetBinary"; break;
         default:
             break;

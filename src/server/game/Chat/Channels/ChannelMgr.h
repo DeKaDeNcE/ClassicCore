@@ -19,7 +19,6 @@
 
 #include "Define.h"
 #include "ObjectGuid.h"
-#include "SharedDefines.h"
 #include <string>
 #include <unordered_map>
 
@@ -33,7 +32,7 @@ class TC_GAME_API ChannelMgr
     typedef std::unordered_map<ObjectGuid, Channel*> BuiltinChannelContainer;
 
     protected:
-        explicit ChannelMgr(Team team) : _team(team), _guidGenerator(HighGuid::ChatChannel) { }
+        explicit ChannelMgr(uint32 team) : _team(team), _guidGenerator(HighGuid::ChatChannel) { }
         ~ChannelMgr();
 
     public:
@@ -43,7 +42,7 @@ class TC_GAME_API ChannelMgr
         ChannelMgr& operator=(ChannelMgr&& right) = delete;
 
         static void LoadFromDB();
-        static ChannelMgr* ForTeam(Team team);
+        static ChannelMgr* ForTeam(uint32 team);
         static Channel* GetChannelForPlayerByNamePart(std::string const& namePart, Player* playerSearcher);
         static Channel* GetChannelForPlayerByGuid(ObjectGuid channelGuid, Player* playerSearcher);
         static AreaTableEntry const* SpecialLinkedArea;
@@ -58,7 +57,7 @@ class TC_GAME_API ChannelMgr
     private:
         CustomChannelContainer _customChannels;
         BuiltinChannelContainer _channels;
-        Team const _team;
+        uint32 const _team;
         ObjectGuidGenerator _guidGenerator;
 
         static void SendNotOnChannelNotify(Player const* player, std::string const& name);

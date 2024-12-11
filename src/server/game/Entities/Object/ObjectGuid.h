@@ -25,11 +25,10 @@
 #include <functional>
 #include <list>
 #include <set>
-#include <stdexcept>
 #include <string>
 #include <type_traits>
-#include <unordered_set>
 #include <vector>
+#include <unordered_set>
 
 enum TypeID
 {
@@ -67,9 +66,7 @@ enum TypeMask
     TYPEMASK_AREATRIGGER            = 0x0800,
     TYPEMASK_SCENEOBJECT            = 0x1000,
     TYPEMASK_CONVERSATION           = 0x2000,
-
-    TYPEMASK_SEER                   = TYPEMASK_UNIT | TYPEMASK_PLAYER | TYPEMASK_DYNAMICOBJECT,
-    TYPEMASK_WORLDOBJECT            = TYPEMASK_UNIT | TYPEMASK_GAMEOBJECT | TYPEMASK_DYNAMICOBJECT | TYPEMASK_CORPSE | TYPEMASK_AREATRIGGER | TYPEMASK_SCENEOBJECT | TYPEMASK_CONVERSATION
+    TYPEMASK_SEER                   = TYPEMASK_PLAYER | TYPEMASK_UNIT | TYPEMASK_DYNAMICOBJECT
 };
 
 enum class HighGuid
@@ -273,7 +270,6 @@ class TC_GAME_API ObjectGuid
 
     public:
         static ObjectGuid const Empty;
-        static ObjectGuid const ToStringFailed;
         static ObjectGuid const FromStringFailed;
         static ObjectGuid const TradeItem;
 
@@ -351,11 +347,11 @@ class TC_GAME_API ObjectGuid
             return std::strong_ordering::equal;
         }
 
-        static std::string_view GetTypeName(HighGuid high);
-        std::string_view GetTypeName() const { return !IsEmpty() ? GetTypeName(GetHigh()) : "None"; }
+        static char const* GetTypeName(HighGuid high);
+        char const* GetTypeName() const { return !IsEmpty() ? GetTypeName(GetHigh()) : "None"; }
         std::string ToString() const;
         std::string ToHexString() const;
-        static ObjectGuid FromString(std::string_view guidString);
+        static ObjectGuid FromString(std::string const& guidString);
         std::size_t GetHash() const;
 
         template<HighGuid type> static std::enable_if_t<ObjectGuidTraits<type>::Format::value == ObjectGuidFormatType::Null, ObjectGuid> Create() { return ObjectGuidFactory::CreateNull(); }
@@ -380,8 +376,10 @@ class TC_GAME_API ObjectGuid
         template<HighGuid type> static std::enable_if_t<ObjectGuidTraits<type>::Format::value == ObjectGuidFormatType::LMMLobby, ObjectGuid> Create(uint32 arg2, uint8 arg3, uint8 arg4, ObjectGuid::LowType counter) { return ObjectGuidFactory::CreateLMMLobby(0, arg2, arg3, arg4, counter); }
 
     protected:
-        ObjectGuid(uint64 high, uint64 low) : _data({{ low, high }})
+        ObjectGuid(uint64 high, uint64 low)
         {
+            _data[0] = low;
+            _data[1] = high;
         }
 
         std::array<uint64, 2> _data = { };
@@ -426,35 +424,6 @@ namespace std
             return key.GetHash();
         }
     };
-}
-
-namespace fmt
-{
-inline namespace v10
-{
-template <typename T, typename Char, typename Enable>
-struct formatter;
-
-template <>
-struct formatter<ObjectGuid, char, void>
-{
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx) -> decltype(ctx.begin())
-    {
-        auto begin = ctx.begin(), end = ctx.end();
-        if (begin == end)
-            return begin;
-
-        if (*begin != '}')
-            throw std::invalid_argument("invalid type specifier");
-
-        return begin;
-    }
-
-    template <typename FormatContext>
-    auto format(ObjectGuid const& guid, FormatContext& ctx) const -> decltype(ctx.out());
-};
-}
 }
 
 namespace Trinity

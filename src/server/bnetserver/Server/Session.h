@@ -19,7 +19,6 @@
 #define Session_h__
 
 #include "AsyncCallbackProcessor.h"
-#include "ClientBuildInfo.h"
 #include "Duration.h"
 #include "QueryResult.h"
 #include "Realm.h"
@@ -174,7 +173,6 @@ namespace Battlenet
         std::string _locale;
         std::string _os;
         uint32 _build;
-        ClientBuild::VariantId _clientInfo;
         Minutes _timezoneOffset;
 
         std::string _ipCountry;

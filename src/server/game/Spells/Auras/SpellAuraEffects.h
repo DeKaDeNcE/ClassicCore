@@ -186,10 +186,8 @@ class TC_GAME_API AuraEffect
         void HandleWaterBreathing(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleForceMoveForward(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleAuraCanTurnWhileFalling(AuraApplication const* aurApp, uint8 mode, bool apply) const;
-        void HandleModAdvFlying(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleIgnoreMovementForces(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleDisableInertia(AuraApplication const* aurApp, uint8 mode, bool apply) const;
-        void HandleSetCantSwim(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         //  threat
         void HandleModThreat(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleAuraModTotalThreat(AuraApplication const* aurApp, uint8 mode, bool apply) const;
@@ -219,7 +217,6 @@ class TC_GAME_API AuraEffect
         void HandleAuraModUseNormalSpeed(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleAuraModMinimumSpeedRate(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleModMovementForceMagnitude(AuraApplication const* aurApp, uint8 mode, bool apply) const;
-        void HandleAuraModAdvFlyingSpeed(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         //  immunity
         void HandleModMechanicImmunityMask(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleModMechanicImmunity(AuraApplication const* aurApp, uint8 mode, bool apply) const;
@@ -252,6 +249,7 @@ class TC_GAME_API AuraEffect
         void HandleOverrideAttackPowerBySpellPower(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleModVersatilityByPct(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleAuraModMaxPower(AuraApplication const* aurApp, uint8 mode, bool apply) const;
+        void HandleModManaRegen(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         //   heal and energize
         void HandleModPowerRegen(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleModPowerRegenPCT(AuraApplication const* aurApp, uint8 mode, bool apply) const;
@@ -317,7 +315,6 @@ class TC_GAME_API AuraEffect
         void HandleAuraModFakeInebriation(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleAuraOverrideSpells(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleAuraSetVehicle(AuraApplication const* aurApp, uint8 mode, bool apply) const;
-        void HandleSetVignette(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandlePreventResurrection(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleMastery(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleAuraForceWeather(AuraApplication const* aurApp, uint8 mode, bool apply) const;
@@ -339,7 +336,7 @@ class TC_GAME_API AuraEffect
         void HandleMountRestrictions(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleCosmeticMounted(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleModRequiredMountCapabilityFlags(AuraApplication const* aurApp, uint8 mode, bool apply) const;
-        void HandleSuppressItemPassiveEffectBySpellLabel(AuraApplication const* aurApp, uint8 mode, bool apply) const;
+        void HandleAuraModResistenceOfStatPercent(AuraApplication const* aurApp, uint8 mode, bool apply) const;
         void HandleForceBreathBar(AuraApplication const* aurApp, uint8 mode, bool apply) const;
 
         // aura effect periodic tick handlers
@@ -362,11 +359,6 @@ class TC_GAME_API AuraEffect
         void HandleProcTriggerSpellAuraProc(AuraApplication* aurApp, ProcEventInfo& eventInfo);
         void HandleProcTriggerSpellWithValueAuraProc(AuraApplication* aurApp, ProcEventInfo& eventInfo);
         void HandleProcTriggerDamageAuraProc(AuraApplication* aurApp, ProcEventInfo& eventInfo);
-
-        // pvp talents
-        void HandleAuraPvpTalents(AuraApplication const* auraApp, uint8 mode, bool apply) const;
-
-        void HandleAuraActAsControlZone(AuraApplication const* aurApp, uint8 mode, bool apply) const;
 };
 
 namespace Trinity

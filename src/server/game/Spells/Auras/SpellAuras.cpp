@@ -151,6 +151,13 @@ void AuraApplication::_InitFlags(Unit* caster, uint32 effMask)
     if (GetBase()->GetSpellInfo()->HasAttribute(SPELL_ATTR8_AURA_POINTS_ON_CLIENT)
         || std::find_if(GetBase()->GetAuraEffects().begin(), GetBase()->GetAuraEffects().end(), std::cref(effectNeedsAmount)) != GetBase()->GetAuraEffects().end())
         _flags |= AFLAG_SCALABLE;
+
+    if ((_flags & AFLAG_POSITIVE))
+        if (!GetBase()->GetSpellInfo()->IsPassive() && !GetBase()->GetSpellInfo()->HasAttribute(SPELL_ATTR1_NO_AURA_ICON) && GetBase()->GetOwner()->GetGUID() == GetTarget()->GetGUID())
+            _flags |= AFLAG_CANCELABLE;
+
+    if (GetBase()->GetSpellInfo()->IsPassive())
+        _flags |= AFLAG_PASSIVE;
 }
 
 void AuraApplication::_HandleEffect(uint8 effIndex, bool apply)
@@ -404,10 +411,10 @@ Aura* Aura::Create(AuraCreateInfo& createInfo)
         createInfo.CasterGUID = createInfo.Caster->GetGUID();
 
     // check if aura can be owned by owner
-    if (Unit* ownerUnit = createInfo._owner->ToUnit())
-        if (!ownerUnit->IsInWorld() || ownerUnit->IsDuringRemoveFromWorld())
+    if (createInfo._owner->isType(TYPEMASK_UNIT))
+        if (!createInfo._owner->IsInWorld() || createInfo._owner->ToUnit()->IsDuringRemoveFromWorld())
             // owner not in world so don't allow to own not self cast single target auras
-            if (createInfo.CasterGUID != ownerUnit->GetGUID() && createInfo._spellInfo->IsSingleTarget())
+            if (createInfo.CasterGUID != createInfo._owner->GetGUID() && createInfo._spellInfo->IsSingleTarget())
                 return nullptr;
 
     Aura* aura = nullptr;
@@ -455,12 +462,12 @@ Aura* Aura::Create(AuraCreateInfo& createInfo)
 Aura::Aura(AuraCreateInfo const& createInfo) :
 m_spellInfo(createInfo._spellInfo), m_castDifficulty(createInfo._castDifficulty), m_castId(createInfo._castId), m_casterGuid(createInfo.CasterGUID),
 m_castItemGuid(createInfo.CastItemGUID), m_castItemId(createInfo.CastItemId),
-m_castItemLevel(createInfo.CastItemLevel), m_spellVisual({ createInfo.Caster ? createInfo.Caster->GetCastSpellXSpellVisualId(createInfo._spellInfo) : createInfo._spellInfo->GetSpellXSpellVisualId(), 0 }),
+m_castItemLevel(createInfo.CastItemLevel), m_spellVisual({ createInfo.Caster ? createInfo.Caster->GetCastSpellXSpellVisualId(createInfo._spellInfo) : createInfo._spellInfo->GetSpellXSpellVisualId() }),
 m_applyTime(GameTime::GetGameTime()), m_owner(createInfo._owner), m_timeCla(0), m_updateTargetMapInterval(0),
 m_casterLevel(createInfo.Caster ? createInfo.Caster->GetLevel() : m_spellInfo->SpellLevel), m_procCharges(0), m_stackAmount(1),
 m_isRemoved(false), m_isSingleTarget(false), m_isUsingCharges(false), m_dropEvent(nullptr),
 m_procCooldown(TimePoint::min()),
-m_lastProcAttemptTime(GameTime::Now() - Seconds(10)), m_lastProcSuccessTime(GameTime::Now() - Seconds(120)), m_scriptRef(this, NoopAuraDeleter())
+m_lastProcAttemptTime(GameTime::Now() - Seconds(10)), m_lastProcSuccessTime(GameTime::Now() - Seconds(120))
 {
     for (SpellPowerEntry const* power : m_spellInfo->PowerCosts)
         if (power && (power->ManaPerSecond != 0 || power->PowerPctPerSecond > 0.0f))
@@ -607,8 +614,6 @@ void Aura::_Remove(AuraRemoveMode removeMode)
         m_dropEvent->ScheduleAbort();
         m_dropEvent = nullptr;
     }
-
-    m_scriptRef = nullptr;
 }
 
 void Aura::UpdateTargetMap(Unit* caster, bool apply)
@@ -883,14 +888,8 @@ int32 Aura::CalcMaxDuration(Unit* caster) const
         maxDuration = -1;
 
     // IsPermanent() checks max duration (which we are supposed to calculate here)
-    if (maxDuration != -1)
-    {
-        if (modOwner)
-            modOwner->ApplySpellMod(spellInfo, SpellModOp::Duration, maxDuration);
-
-        if (spellInfo->IsEmpowerSpell())
-            maxDuration += SPELL_EMPOWER_HOLD_TIME_AT_MAX;
-    }
+    if (maxDuration != -1 && modOwner)
+        modOwner->ApplySpellMod(spellInfo, SpellModOp::Duration, maxDuration);
 
     return maxDuration;
 }
@@ -1571,10 +1570,6 @@ void Aura::HandleAuraSpecificMods(AuraApplication const* aurApp, Unit* caster, b
 
 bool Aura::CanBeAppliedOn(Unit* target)
 {
-    for (uint32 label : GetSpellInfo()->Labels)
-        if (target->HasAuraTypeWithMiscvalue(SPELL_AURA_SUPPRESS_ITEM_PASSIVE_EFFECT_BY_SPELL_LABEL, label))
-            return false;
-
     // unit not in world or during remove from world
     if (!target->IsInWorld() || target->IsDuringRemoveFromWorld())
     {
@@ -2072,18 +2067,6 @@ void Aura::CallScriptAfterDispel(DispelInfo* dispelInfo)
     }
 }
 
-void Aura::CallScriptOnHeartbeat()
-{
-    for (AuraScript* script : m_loadedScripts)
-    {
-        script->_PrepareScriptCall(AURA_SCRIPT_HOOK_ON_HEARTBEAT);
-        for (AuraScript::AuraHeartbeatHandler const& onHeartbeat : script->OnHeartbeat)
-            onHeartbeat.Call(script);
-
-        script->_FinishScriptCall();
-    }
-}
-
 bool Aura::CallScriptEffectApplyHandlers(AuraEffect const* aurEff, AuraApplication const* aurApp, AuraEffectHandleModes mode)
 {
     bool preventDefault = false;
@@ -2528,13 +2511,6 @@ void UnitAura::FillTargetMap(std::unordered_map<Unit*, uint32>& targets, Unit* c
             targets.emplace(target, targetPair.second);
     }
 
-    // skip area update if owner is not in world!
-    if (!GetUnitOwner()->IsInWorld())
-        return;
-
-    if (GetUnitOwner()->HasAuraState(AURA_STATE_BANISHED, GetSpellInfo(), caster))
-        return;
-
     for (SpellEffectInfo const& spellEffectInfo : GetSpellInfo()->GetEffects())
     {
         if (!HasEffect(spellEffectInfo.EffectIndex))
@@ -2542,6 +2518,13 @@ void UnitAura::FillTargetMap(std::unordered_map<Unit*, uint32>& targets, Unit* c
 
         // area auras only
         if (spellEffectInfo.IsEffect(SPELL_EFFECT_APPLY_AURA))
+            continue;
+
+        // skip area update if owner is not in world!
+        if (!GetUnitOwner()->IsInWorld())
+            continue;
+
+        if (GetUnitOwner()->HasUnitState(UNIT_STATE_ISOLATED))
             continue;
 
         std::vector<WorldObject*> units;
@@ -2630,31 +2613,6 @@ void UnitAura::AddStaticApplication(Unit* target, uint32 effMask)
         return;
 
     _staticApplications[target->GetGUID()] |= effMask;
-}
-
-void UnitAura::Heartbeat()
-{
-    Aura::Heartbeat();
-
-    // Periodic food and drink emote animation
-    HandlePeriodicFoodSpellVisualKit();
-
-    // Invoke the OnHeartbeat AuraScript hook
-    CallScriptOnHeartbeat();
-}
-
-void UnitAura::HandlePeriodicFoodSpellVisualKit()
-{
-    SpellSpecificType specificType = GetSpellInfo()->GetSpellSpecific();
-
-    bool food = specificType == SPELL_SPECIFIC_FOOD || specificType == SPELL_SPECIFIC_FOOD_AND_DRINK;
-    bool drink = specificType == SPELL_SPECIFIC_DRINK || specificType == SPELL_SPECIFIC_FOOD_AND_DRINK;
-
-    if (food)
-        GetUnitOwner()->SendPlaySpellVisualKit(SPELL_VISUAL_KIT_FOOD, 0, 0);
-
-    if (drink)
-        GetUnitOwner()->SendPlaySpellVisualKit(SPELL_VISUAL_KIT_DRINK, 0, 0);
 }
 
 DynObjAura::DynObjAura(AuraCreateInfo const& createInfo)

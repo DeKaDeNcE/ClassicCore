@@ -135,8 +135,8 @@ public:
         Player* player = handler->GetPlayer();
         for (auto const& [id, quest] : sObjectMgr->GetQuestTemplates())
         {
-            if (quest->GetAllowableClasses() && player->SatisfyQuestClass(quest.get(), false))
-                player->LearnQuestRewardedSpells(quest.get());
+            if (quest.GetAllowableClasses() && player->SatisfyQuestClass(&quest, false))
+                player->LearnQuestRewardedSpells(&quest);
         }
         return true;
     }
@@ -181,8 +181,9 @@ public:
         return true;
     }
 
-    static bool HandleLearnAllTalentsCommand(ChatHandler* handler)
+    static bool HandleLearnAllTalentsCommand(ChatHandler* /*handler*/)
     {
+        /*
         Player* player = handler->GetSession()->GetPlayer();
         uint32 playerClass = player->GetClass();
 
@@ -209,6 +210,7 @@ public:
         player->SendTalentsInfoData();
 
         handler->SendSysMessage(LANG_COMMAND_LEARN_CLASS_TALENTS);
+        */
         return true;
     }
 

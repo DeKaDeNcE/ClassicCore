@@ -16,38 +16,19 @@
  */
 
 #include "DB2Stores.h"
-#include "World.h"
+#include "GameTables.h"
 #include "ItemTemplate.h"
 #include "Player.h"
+#include "World.h"
 
-int32 const SocketColorToGemTypeMask[26] =
+int32 const SocketColorToGemTypeMask[6] =
 {
     0,
     SOCKET_COLOR_META,
     SOCKET_COLOR_RED,
     SOCKET_COLOR_YELLOW,
     SOCKET_COLOR_BLUE,
-    SOCKET_COLOR_HYDRAULIC,
-    SOCKET_COLOR_COGWHEEL,
     SOCKET_COLOR_PRISMATIC,
-    SOCKET_COLOR_RELIC_IRON,
-    SOCKET_COLOR_RELIC_BLOOD,
-    SOCKET_COLOR_RELIC_SHADOW,
-    SOCKET_COLOR_RELIC_FEL,
-    SOCKET_COLOR_RELIC_ARCANE,
-    SOCKET_COLOR_RELIC_FROST,
-    SOCKET_COLOR_RELIC_FIRE,
-    SOCKET_COLOR_RELIC_WATER,
-    SOCKET_COLOR_RELIC_LIFE,
-    SOCKET_COLOR_RELIC_WIND,
-    SOCKET_COLOR_RELIC_HOLY,
-    SOCKET_COLOR_PUNCHCARD_RED,
-    SOCKET_COLOR_PUNCHCARD_YELLOW,
-    SOCKET_COLOR_PUNCHCARD_BLUE,
-    SOCKET_COLOR_DOMINATION,
-    SOCKET_COLOR_CYPHER,
-    SOCKET_COLOR_TINKER,
-    SOCKET_COLOR_PRIMORDIAL
 };
 
 char const* ItemTemplate::GetName(LocaleConstant locale) const
@@ -64,7 +45,7 @@ bool ItemTemplate::HasSignature() const
         GetClass() != ITEM_CLASS_CONSUMABLE &&
         GetClass() != ITEM_CLASS_QUEST &&
         !HasFlag(ITEM_FLAG_NO_CREATOR) &&
-        GetId() != ITEM_HEARTHSTONE;
+        GetId() != 6948; /*Hearthstone*/
 }
 
 bool ItemTemplate::CanChangeEquipStateInCombat() const
@@ -139,73 +120,14 @@ char const* ItemTemplate::GetDefaultLocaleName() const
     return ExtendedData->Display[sWorld->GetDefaultDbcLocale()];
 }
 
-uint32 ItemTemplate::GetArmor(uint32 itemLevel) const
-{
-    uint32 quality = ItemQualities(GetQuality()) != ITEM_QUALITY_HEIRLOOM ? ItemQualities(GetQuality()) : ITEM_QUALITY_RARE;
-    if (quality > ITEM_QUALITY_ARTIFACT)
-        return 0;
-
-    // all items but shields
-    if (GetClass() != ITEM_CLASS_ARMOR || GetSubClass() != ITEM_SUBCLASS_ARMOR_SHIELD)
-    {
-        ItemArmorQualityEntry const* armorQuality = sItemArmorQualityStore.LookupEntry(itemLevel);
-        ItemArmorTotalEntry const* armorTotal = sItemArmorTotalStore.LookupEntry(itemLevel);
-        if (!armorQuality || !armorTotal)
-            return 0;
-
-        uint32 inventoryType = GetInventoryType();
-        if (inventoryType == INVTYPE_ROBE)
-            inventoryType = INVTYPE_CHEST;
-
-        ArmorLocationEntry const* location = sArmorLocationStore.LookupEntry(inventoryType);
-        if (!location)
-            return 0;
-
-        if (GetSubClass() < ITEM_SUBCLASS_ARMOR_CLOTH || GetSubClass() > ITEM_SUBCLASS_ARMOR_PLATE)
-            return 0;
-
-        float total = 1.0f;
-        float locationModifier = 1.0f;
-        switch (GetSubClass())
-        {
-            case ITEM_SUBCLASS_ARMOR_CLOTH:
-                total = armorTotal->Cloth;
-                locationModifier = location->Clothmodifier;
-                break;
-            case ITEM_SUBCLASS_ARMOR_LEATHER:
-                total = armorTotal->Leather;
-                locationModifier = location->Leathermodifier;
-                break;
-            case ITEM_SUBCLASS_ARMOR_MAIL:
-                total = armorTotal->Mail;
-                locationModifier = location->Chainmodifier;
-                break;
-            case ITEM_SUBCLASS_ARMOR_PLATE:
-                total = armorTotal->Plate;
-                locationModifier = location->Platemodifier;
-                break;
-            default:
-                break;
-        }
-
-        return uint32(armorQuality->Qualitymod[quality] * total * locationModifier + 0.5f);
-    }
-
-    // shields
-    ItemArmorShieldEntry const* shield = sItemArmorShieldStore.LookupEntry(itemLevel);
-    if (!shield)
-        return 0;
-
-    return uint32(shield->Quality[quality] + 0.5f);
-}
-
-float ItemTemplate::GetDPS(uint32 itemLevel) const
+float ItemTemplate::GetDPS() const
 {
     uint32 quality = ItemQualities(GetQuality()) != ITEM_QUALITY_HEIRLOOM ? ItemQualities(GetQuality()) : ITEM_QUALITY_RARE;
     if (GetClass() != ITEM_CLASS_WEAPON || quality > ITEM_QUALITY_ARTIFACT)
         return 0.0f;
 
     float dps = 0.0f;
+    uint32 itemLevel = GetItemLevel();
     switch (GetInventoryType())
     {
         case INVTYPE_AMMO:
@@ -252,10 +174,10 @@ float ItemTemplate::GetDPS(uint32 itemLevel) const
     return dps;
 }
 
-void ItemTemplate::GetDamage(uint32 itemLevel, float& minDamage, float& maxDamage) const
+void ItemTemplate::GetDamage(float& minDamage, float& maxDamage) const
 {
     minDamage = maxDamage = 0.0f;
-    float dps = GetDPS(itemLevel);
+    float dps = GetDPS();
     if (dps > 0.0f)
     {
         float avgDamage = dps * GetDelay() * 0.001f;
@@ -291,4 +213,10 @@ bool ItemTemplate::IsUsableByLootSpecialization(Player const* player, bool alway
 std::size_t ItemTemplate::CalculateItemSpecBit(ChrSpecializationEntry const* spec)
 {
     return (spec->ClassID - 1) * MAX_SPECIALIZATIONS + spec->OrderIndex;
+}
+
+int16 ItemTemplate::GetShieldBlockValue(uint32 itemLevel) const
+{
+    GtShieldBlockRegularEntry const* blockEntry = sShieldBlockRegularGameTable.GetRow(itemLevel);
+    return static_cast<int16>(GetShieldBlockRegularColumnForQuality(blockEntry, static_cast<ItemQualities>(GetQuality())));
 }

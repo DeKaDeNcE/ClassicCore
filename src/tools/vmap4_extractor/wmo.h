@@ -141,9 +141,6 @@ public:
     uint16 nBatchA;
     uint16 nBatchB;
     uint32 nBatchC, fogIdx, groupLiquid, groupWMOID;
-    uint32 mogpFlags2;
-    int16 parentOrFirstChildSplitGroupIndex;
-    int16 nextSplitChildGroupIndex;
 
     int moba_size;
     int LiquEx_size;
@@ -154,8 +151,6 @@ public:
     std::vector<uint16> DoodadReferences;
 
     WMOGroup(std::string const& filename);
-    WMOGroup(WMOGroup&&) = default;
-    WMOGroup& operator=(WMOGroup&&) = default;
     ~WMOGroup();
 
     bool open(WMORoot* rootWMO);

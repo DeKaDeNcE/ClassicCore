@@ -23,7 +23,6 @@
 #include "Define.h"
 #include "DBCEnums.h"
 #include "Duration.h"
-#include "EnumFlag.h"
 #include "Errors.h"
 #include "FlagsArray.h"
 #include "Hash.h"
@@ -31,7 +30,7 @@
 #include "RaceMask.h"
 #include "SharedDefines.h"
 #include "SpellDefines.h"
-#include <bitset>
+
 #include <functional>
 #include <map>
 #include <set>
@@ -51,7 +50,6 @@ struct SpellCategoriesEntry;
 struct SpellClassOptionsEntry;
 struct SpellCooldownsEntry;
 struct SpellEffectEntry;
-struct SpellEmpowerStageEntry;
 struct SpellEquippedItemsEntry;
 struct SpellInterruptsEntry;
 struct SpellLabelEntry;
@@ -66,7 +64,6 @@ struct SpellShapeshiftEntry;
 struct SpellTargetRestrictionsEntry;
 struct SpellTotemsEntry;
 struct SpellXSpellVisualEntry;
-enum AuraType : uint32;
 
 // only used in code
 enum SpellCategories
@@ -135,7 +132,7 @@ enum ProcFlags : uint32
 {
     PROC_FLAG_NONE                              = 0x00000000,
 
-    PROC_FLAG_HEARTBEAT                         = 0x00000001,    // 00 Heartbeat
+    PROC_FLAG_HEARTBEAT                         = 0x00000001,    // 00 Killed by agressor - not sure about this flag
     PROC_FLAG_KILL                              = 0x00000002,    // 01 Kill target (in most cases need XP/Honor reward)
 
     PROC_FLAG_DEAL_MELEE_SWING                  = 0x00000004,    // 02 Done melee auto attack
@@ -590,36 +587,14 @@ typedef std::unordered_map<uint32, SpellLearnSkillNode> SpellLearnSkillMap;
 
 struct SpellLearnSpellNode
 {
-    uint32 SourceSpell;
     uint32 Spell;
     uint32 OverridesSpell;
     bool Active;                    // show in spellbook or not
     bool AutoLearned;               // This marks the spell as automatically learned from another source that - will only be used for unlearning
 };
 
-enum class SpellOtherImmunity : uint8
-{
-    None        = 0x0,
-    AoETarget   = 0x1,
-    ChainTarget = 0x2
-};
-
-DEFINE_ENUM_FLAG(SpellOtherImmunity)
-
-struct CreatureImmunities
-{
-    std::bitset<MAX_SPELL_SCHOOL> School;
-    std::bitset<DISPEL_MAX> DispelType;
-    std::bitset<MAX_MECHANIC> Mechanic;
-    std::vector<SpellEffectName> Effect;
-    std::vector<AuraType> Aura;
-    EnumFlag<SpellOtherImmunity> Other = SpellOtherImmunity::None;
-};
-
 typedef std::multimap<uint32, SpellLearnSpellNode> SpellLearnSpellMap;
 typedef std::pair<SpellLearnSpellMap::const_iterator, SpellLearnSpellMap::const_iterator> SpellLearnSpellMapBounds;
-
-typedef std::multimap<uint32, SpellLearnSpellNode const*> SpellLearnedBySpellMap;
 
 typedef std::multimap<uint32, SkillLineAbilityEntry const*> SkillLineAbilityMap;
 typedef std::pair<SkillLineAbilityMap::const_iterator, SkillLineAbilityMap::const_iterator> SkillLineAbilityMapBounds;
@@ -671,7 +646,6 @@ struct SpellInfoLoadHelper
     SpellClassOptionsEntry const* ClassOptions = nullptr;
     SpellCooldownsEntry const* Cooldowns = nullptr;
     std::array<SpellEffectEntry const*, MAX_SPELL_EFFECTS> Effects = { };
-    std::vector<SpellEmpowerStageEntry const*> EmpowerStages;
     SpellEquippedItemsEntry const* EquippedItems = nullptr;
     SpellInterruptsEntry const* Interrupts = nullptr;
     std::vector<SpellLabelEntry const*> Labels;
@@ -728,7 +702,6 @@ class TC_GAME_API SpellMgr
         SpellLearnSpellMapBounds GetSpellLearnSpellMapBounds(uint32 spell_id) const;
         bool IsSpellLearnSpell(uint32 spell_id) const;
         bool IsSpellLearnToSpell(uint32 spell_id1, uint32 spell_id2) const;
-        Trinity::IteratorPair<SpellLearnedBySpellMap::const_iterator> GetSpellLearnedBySpellMapBounds(uint32 learnedSpellId) const;
 
         // Spell target coordinates
         SpellTargetPosition const* GetSpellTargetPosition(uint32 spell_id, SpellEffIndex effIndex) const;
@@ -771,9 +744,6 @@ class TC_GAME_API SpellMgr
         SpellAreaForQuestMapBounds GetSpellAreaForQuestEndMapBounds(uint32 quest_id) const;
         SpellAreaForAuraMapBounds GetSpellAreaForAuraMapBounds(uint32 spell_id) const;
         SpellAreaForAreaMapBounds GetSpellAreaForAreaMapBounds(uint32 area_id) const;
-
-        // Immunities
-        static CreatureImmunities const* GetCreatureImmunities(int32 creatureImmunitiesId);
 
         // SpellInfo object management
         SpellInfo const* GetSpellInfo(uint32 spellId, Difficulty difficulty) const;
@@ -832,7 +802,6 @@ class TC_GAME_API SpellMgr
         SpellRequiredMap           mSpellReq;
         SpellLearnSkillMap         mSpellLearnSkills;
         SpellLearnSpellMap         mSpellLearnSpells;
-        SpellLearnedBySpellMap     mSpellLearnedBySpells;
         SpellTargetPositionMap     mSpellTargetPositions;
         SpellSpellGroupMap         mSpellSpellGroup;
         SpellGroupSpellMap         mSpellGroupSpell;

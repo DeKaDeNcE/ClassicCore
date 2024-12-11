@@ -748,6 +748,7 @@ struct npc_kelthuzad_guardian : public ScriptedAI
                     me->SetVisible(false);
                     me->SetHomePosition(me->GetPosition());
                     DoZoneInCombat();
+                    me->SetCombatPulseDelay(5);
                     _visibilityTimer =  2 * IN_MILLISECONDS;
                     _bloodTapTimer   = 25 * IN_MILLISECONDS;
                     break;
@@ -780,6 +781,7 @@ struct npc_kelthuzad_guardian : public ScriptedAI
 
         void Reset() override
         {
+            me->SetCombatPulseDelay(0);
             ScriptedAI::Reset();
         }
 

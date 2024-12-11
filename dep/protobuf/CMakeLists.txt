@@ -74,10 +74,10 @@ target_link_libraries(protobuf
 if (BUILD_SHARED_LIBS)
   target_compile_definitions(protobuf
     PRIVATE
-      LIBPROTOBUF_EXPORTS
-      LIBPROTOC_EXPORTS
+      -DLIBPROTOBUF_EXPORTS
+      -DLIBPROTOC_EXPORTS
     PUBLIC
-      PROTOBUF_USE_DLLS)
+      -DPROTOBUF_USE_DLLS)
 endif()
 
 if (MSVC)
@@ -87,7 +87,7 @@ if (MSVC)
 
   target_compile_definitions(protobuf
     PRIVATE
-      _SCL_SECURE_NO_WARNINGS)
+      -D_SCL_SECURE_NO_WARNINGS)
 endif()
 
 set_target_properties(protobuf

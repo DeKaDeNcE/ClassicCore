@@ -20,6 +20,7 @@
 #include "InstanceScript.h"
 #include "Map.h"
 #include "PhasingHandler.h"
+#include "Player.h"
 #include "ScriptedCreature.h"
 #include "ScriptMgr.h"
 #include "TemporarySummon.h"
@@ -97,6 +98,7 @@ class instance_halls_of_reflection : public InstanceMapScript
                 SetBossNumber(EncounterCount);
                 LoadDungeonEncounterData(encounters);
 
+                _teamInInstance           = 0;
                 _waveCount                = 0;
                 _introState               = NOT_STARTED;
                 _frostswornGeneralState   = NOT_STARTED;
@@ -105,8 +107,11 @@ class instance_halls_of_reflection : public InstanceMapScript
                 events.Reset();
             }
 
-            void OnPlayerEnter(Player* /*player*/) override
+            void OnPlayerEnter(Player* player) override
             {
+                if (!_teamInInstance)
+                    _teamInInstance = player->GetTeam();
+
                 if (GetBossState(DATA_MARWYN) == DONE)
                 {
                     SpawnGunship();
@@ -206,18 +211,26 @@ class instance_halls_of_reflection : public InstanceMapScript
 
             uint32 GetGameObjectEntry(ObjectGuid::LowType /*guidLow*/, uint32 entry) override
             {
+                if (!_teamInInstance)
+                {
+                    Map::PlayerList const& players = instance->GetPlayers();
+                    if (!players.isEmpty())
+                        if (Player* player = players.begin()->GetSource())
+                            _teamInInstance = player->GetTeam();
+                }
+
                 switch (entry)
                 {
                     case GO_THE_CAPTAIN_CHEST_ALLIANCE_NORMAL:
                     case GO_THE_CAPTAIN_CHEST_ALLIANCE_HEROIC:
                     case GO_THE_SKYBREAKER_STAIRS:
-                        if (instance->GetTeamInInstance() == HORDE)
+                        if (_teamInInstance == HORDE)
                             return 0;
                         break;
                     case GO_THE_CAPTAIN_CHEST_HORDE_NORMAL:
                     case GO_THE_CAPTAIN_CHEST_HORDE_HEROIC:
                     case GO_ORGRIMS_HAMMER_STAIRS:
-                        if (instance->GetTeamInInstance() == ALLIANCE)
+                        if (_teamInInstance == ALLIANCE)
                             return 0;
                         break;
                     default:
@@ -371,13 +384,29 @@ class instance_halls_of_reflection : public InstanceMapScript
                 if (!GunshipGUID.IsEmpty())
                     return;
 
-                if (Transport* gunship = sTransportMgr->CreateTransport(instance->GetTeamInInstance() == HORDE ? GO_ORGRIMS_HAMMER : GO_THE_SKYBREAKER, instance))
+                if (!_teamInInstance)
+                {
+                    Map::PlayerList const& players = instance->GetPlayers();
+                    if (!players.isEmpty())
+                        if (Player* player = players.begin()->GetSource())
+                            _teamInInstance = player->GetTeam();
+                }
+
+                if (Transport* gunship = sTransportMgr->CreateTransport(_teamInInstance == HORDE ? GO_ORGRIMS_HAMMER : GO_THE_SKYBREAKER, instance))
                     gunship->EnableMovement(GetBossState(DATA_THE_LICH_KING_ESCAPE) == DONE);
             }
 
             void SpawnEscapeEvent()
             {
-                if (instance->GetTeamInInstance() == ALLIANCE)
+                if (!_teamInInstance)
+                {
+                    Map::PlayerList const& players = instance->GetPlayers();
+                    if (!players.isEmpty())
+                        if (Player* player = players.begin()->GetSource())
+                            _teamInInstance = player->GetTeam();
+                }
+
+                if (_teamInInstance == ALLIANCE)
                 {
                     instance->SummonCreature(NPC_JAINA_ESCAPE, JainaSpawnPos2);
                     instance->SummonCreature(NPC_THE_LICH_KING_ESCAPE, TheLichKingEscapePosition[1]);
@@ -398,7 +427,7 @@ class instance_halls_of_reflection : public InstanceMapScript
                         {
                             if (_introState == NOT_STARTED)
                             {
-                                if (instance->GetTeamInInstance() == ALLIANCE)
+                                if (_teamInInstance == ALLIANCE)
                                 {
                                     instance->SummonCreature(NPC_JAINA_INTRO, JainaSpawnPos);
                                     instance->SummonCreature(NPC_KORELN, KorelnOrLoralenSpawnPos);
@@ -620,7 +649,7 @@ class instance_halls_of_reflection : public InstanceMapScript
                         for (ObjectGuid guid : GunshipCannonGUIDs)
                         {
                             uint32 entry = guid.GetEntry();
-                            if ((entry == NPC_WORLD_TRIGGER && instance->GetTeamInInstance() == ALLIANCE) || (entry == NPC_GUNSHIP_CANNON_HORDE && instance->GetTeamInInstance() == HORDE))
+                            if ((entry == NPC_WORLD_TRIGGER && _teamInInstance == ALLIANCE) || (entry == NPC_GUNSHIP_CANNON_HORDE && _teamInInstance == HORDE))
                                 if (Creature* cannon = instance->GetCreature(guid))
                                     cannon->CastSpell(cannon, SPELL_GUNSHIP_CANNON_FIRE, true);
                         }
@@ -652,7 +681,7 @@ class instance_halls_of_reflection : public InstanceMapScript
                     case DATA_WAVE_COUNT:
                         return _waveCount;
                     case DATA_TEAM_IN_INSTANCE:
-                        return instance->GetTeamInInstance();
+                        return _teamInInstance;
                     case DATA_INTRO_EVENT:
                         return _introState;
                     case DATA_FROSTSWORN_GENERAL:
@@ -734,6 +763,7 @@ class instance_halls_of_reflection : public InstanceMapScript
             ObjectGuid ShadowThroneDoorGUID;
             ObjectGuid CaveInGUID;
 
+            uint32 _teamInInstance;
             uint32 _waveCount;
             uint32 _introState;
             uint32 _frostswornGeneralState;

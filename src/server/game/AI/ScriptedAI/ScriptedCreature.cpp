@@ -155,7 +155,7 @@ void ScriptedAI::UpdateAI(uint32 /*diff*/)
 void ScriptedAI::DoStartMovement(Unit* victim, float distance, float angle)
 {
     if (victim)
-        me->StartDefaultCombatMovement(victim, distance, angle);
+        me->GetMotionMaster()->MoveChase(victim, distance, angle);
 }
 
 void ScriptedAI::DoStartNoMovement(Unit* victim)
@@ -342,7 +342,7 @@ SpellInfo const* ScriptedAI::SelectSpell(Unit* target, uint32 school, uint32 mec
         return nullptr;
 
     // Silenced so we can't cast
-    if (me->IsSilenced(school ? SpellSchoolMask(school) : SPELL_SCHOOL_MASK_MAGIC))
+    if (me->HasUnitFlag(UNIT_FLAG_SILENCED))
         return nullptr;
 
     // Using the extended script system we first create a list of viable spells
@@ -543,6 +543,7 @@ void BossAI::_Reset()
     if (!me->IsAlive())
         return;
 
+    me->SetCombatPulseDelay(0);
     me->ResetLootMode();
     events.Reset();
     summons.DespawnAll();
@@ -578,7 +579,9 @@ void BossAI::_JustEngagedWith(Unit* who)
         instance->SetBossState(_bossId, IN_PROGRESS);
     }
 
+    me->SetCombatPulseDelay(5);
     me->setActive(true);
+    DoZoneInCombat();
     ScheduleTasks();
 }
 

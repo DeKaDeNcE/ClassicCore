@@ -34,7 +34,6 @@
 
 #define VISUAL_WAYPOINT 1 // Creature Entry ID used for waypoints show, visible only for GMs
 #define WORLD_TRIGGER 12999
-#define ARTIFACTS_ALL_WEAPONS_GENERAL_WEAPON_EQUIPPED_PASSIVE 197886
 #define SPELL_DH_DOUBLE_JUMP 196055
 #define DISPLAYID_HIDDEN_MOUNT 73200
 
@@ -70,7 +69,6 @@ struct LiquidData;
 struct LiquidTypeEntry;
 struct MountCapabilityEntry;
 struct SpellValue;
-struct TeleportLocation;
 
 class Aura;
 class AuraApplication;
@@ -103,18 +101,12 @@ enum MovementGeneratorType : uint8;
 enum ProcFlagsHit : uint32;
 enum ProcFlagsSpellPhase : uint32;
 enum ProcFlagsSpellType : uint32;
-enum class SpellOtherImmunity : uint8;
 enum ZLiquidStatus : uint32;
 
 namespace Movement
 {
     class MoveSpline;
     struct SpellEffectExtraData;
-}
-
-namespace Vignettes
-{
-struct VignetteData;
 }
 
 typedef std::list<Unit*> UnitList;
@@ -175,12 +167,13 @@ enum UnitMods
     UNIT_MOD_STAT_AGILITY,
     UNIT_MOD_STAT_STAMINA,
     UNIT_MOD_STAT_INTELLECT,
+    UNIT_MOD_STAT_SPIRIT,
     UNIT_MOD_HEALTH,
     UNIT_MOD_MANA,                                          // UNIT_MOD_MANA..UNIT_MOD_PAIN must be listed in existing order, it is accessed by index values of Powers enum.
     UNIT_MOD_RAGE,
     UNIT_MOD_FOCUS,
     UNIT_MOD_ENERGY,
-    UNIT_MOD_COMBO_POINTS,
+    UNIT_MOD_HAPPINESS,
     UNIT_MOD_RUNES,
     UNIT_MOD_RUNIC_POWER,
     UNIT_MOD_SOUL_SHARDS,
@@ -190,7 +183,7 @@ enum UnitMods
     UNIT_MOD_MAELSTROM,
     UNIT_MOD_CHI,
     UNIT_MOD_INSANITY,
-    UNIT_MOD_BURNING_EMBERS,
+    UNIT_MOD_COMBO_POINTS,
     UNIT_MOD_DEMONIC_FURY,
     UNIT_MOD_ARCANE_CHARGES,
     UNIT_MOD_FURY,
@@ -266,7 +259,7 @@ enum UnitState : uint32
     UNIT_STATE_ROOT                  = 0x00000400,
     UNIT_STATE_CONFUSED              = 0x00000800,
     UNIT_STATE_DISTRACTED            = 0x00001000,
-    UNIT_STATE_ISOLATED_DEPRECATED   = 0x00002000, // REUSE
+    UNIT_STATE_ISOLATED              = 0x00002000, // area auras do not affect other players
     UNIT_STATE_ATTACK_PLAYER         = 0x00004000,
     UNIT_STATE_CASTING               = 0x00008000,
     UNIT_STATE_POSSESSED             = 0x00010000, // being possessed by another unit
@@ -286,7 +279,7 @@ enum UnitState : uint32
 
     UNIT_STATE_ALL_STATE_SUPPORTED = UNIT_STATE_DIED | UNIT_STATE_MELEE_ATTACKING | UNIT_STATE_CHARMED | UNIT_STATE_STUNNED | UNIT_STATE_ROAMING | UNIT_STATE_CHASE
                                    | UNIT_STATE_FOCUSING | UNIT_STATE_FLEEING | UNIT_STATE_IN_FLIGHT | UNIT_STATE_FOLLOW | UNIT_STATE_ROOT | UNIT_STATE_CONFUSED
-                                   | UNIT_STATE_DISTRACTED | UNIT_STATE_ATTACK_PLAYER | UNIT_STATE_CASTING
+                                   | UNIT_STATE_DISTRACTED | UNIT_STATE_ISOLATED | UNIT_STATE_ATTACK_PLAYER | UNIT_STATE_CASTING
                                    | UNIT_STATE_POSSESSED | UNIT_STATE_CHARGING | UNIT_STATE_JUMPING | UNIT_STATE_MOVE | UNIT_STATE_ROTATING
                                    | UNIT_STATE_EVADE | UNIT_STATE_ROAMING_MOVE | UNIT_STATE_CONFUSED_MOVE | UNIT_STATE_FLEEING_MOVE
                                    | UNIT_STATE_CHASE_MOVE | UNIT_STATE_FOLLOW_MOVE | UNIT_STATE_IGNORE_PATHFINDING | UNIT_STATE_FOLLOW_FORMATION_MOVE,
@@ -309,7 +302,7 @@ TC_GAME_API extern float playerBaseMoveSpeed[MAX_MOVE_TYPE];
 
 enum CombatRating
 {
-    CR_AMPLIFY                          = 0,
+    CR_WEAPON_SKILL                     = 0,
     CR_DEFENSE_SKILL                    = 1,
     CR_DODGE                            = 2,
     CR_PARRY                            = 3,
@@ -320,30 +313,23 @@ enum CombatRating
     CR_CRIT_MELEE                       = 8,
     CR_CRIT_RANGED                      = 9,
     CR_CRIT_SPELL                       = 10,
-    CR_CORRUPTION                       = 11,
-    CR_CORRUPTION_RESISTANCE            = 12,
-    CR_SPEED                            = 13,
-    CR_RESILIENCE_CRIT_TAKEN            = 14,
-    CR_RESILIENCE_PLAYER_DAMAGE         = 15,
-    CR_LIFESTEAL                        = 16,
+    CR_HIT_TAKEN_MELEE                  = 11,
+    CR_HIT_TAKEN_RANGED                 = 12,
+    CR_HIT_TAKEN_SPELL                  = 13,
+    CR_CRIT_TAKEN_MELEE                 = 14,
+    CR_CRIT_TAKEN_RANGED                = 15,
+    CR_CRIT_TAKEN_SPELL                 = 16,
     CR_HASTE_MELEE                      = 17,
     CR_HASTE_RANGED                     = 18,
     CR_HASTE_SPELL                      = 19,
-    CR_AVOIDANCE                        = 20,
-    CR_STURDINESS                       = 21,
-    CR_UNUSED_7                         = 22,
+    CR_WEAPON_SKILL_MAINHAND            = 20,
+    CR_WEAPON_SKILL_OFFHAND             = 21,
+    CR_WEAPON_SKILL_RANGED              = 22,
     CR_EXPERTISE                        = 23,
-    CR_ARMOR_PENETRATION                = 24,
-    CR_MASTERY                          = 25,
-    CR_PVP_POWER                        = 26,
-    CR_CLEAVE                           = 27,
-    CR_VERSATILITY_DAMAGE_DONE          = 28,
-    CR_VERSATILITY_HEALING_DONE         = 29,
-    CR_VERSATILITY_DAMAGE_TAKEN         = 30,
-    CR_UNUSED_12                        = 31
+    CR_ARMOR_PENETRATION                = 24
 };
 
-#define MAX_COMBAT_RATING         32
+#define MAX_COMBAT_RATING         25
 
 enum UnitTypeMask
 {
@@ -685,9 +671,6 @@ class TC_GAME_API Unit : public WorldObject
 
         virtual void Update(uint32 time) override;
 
-        void Heartbeat() override;
-        void TriggerAuraHeartbeat();
-
         void setAttackTimer(WeaponAttackType type, uint32 time) { m_attackTimer[type] = time; }
         void resetAttackTimer(WeaponAttackType type = BASE_ATTACK);
         uint32 getAttackTimer(WeaponAttackType type) const { return m_attackTimer[type]; }
@@ -725,7 +708,7 @@ class TC_GAME_API Unit : public WorldObject
         }
 
         void ValidateAttackersAndOwnTarget();
-        void CombatStop(bool includingCast = false, bool mutualPvP = true, bool (*unitFilter)(Unit const* otherUnit) = nullptr);
+        void CombatStop(bool includingCast = false, bool mutualPvP = true);
         void CombatStopWithPets(bool includingCast = false);
         void StopAttackFaction(uint32 faction_id);
         Unit* SelectNearbyTarget(Unit* exclude = nullptr, float dist = NOMINAL_MELEE_RANGE) const;
@@ -748,7 +731,6 @@ class TC_GAME_API Unit : public WorldObject
 
         int32 GetContentTuning() const { return m_unitData->ContentTuningID; }
         uint8 GetLevel() const { return uint8(m_unitData->Level); }
-        uint8 GetEffectiveLevel() const { return uint8(*m_unitData->EffectiveLevel ? *m_unitData->EffectiveLevel : *m_unitData->Level); }
         uint8 GetLevelForTarget(WorldObject const* /*target*/) const override { return GetLevel(); }
         void SetLevel(uint8 lvl, bool sendUpdate = true);
         uint8 GetRace() const { return m_unitData->Race; }
@@ -765,17 +747,11 @@ class TC_GAME_API Unit : public WorldObject
         float GetStat(Stats stat) const { return float(m_unitData->Stats[stat]); }
         void SetStat(Stats stat, int32 val) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::Stats, stat), val); }
         uint32 GetArmor() const { return GetResistance(SPELL_SCHOOL_NORMAL); }
-        void SetArmor(int32 val, int32 bonusVal)
-        {
-            SetResistance(SPELL_SCHOOL_NORMAL, val);
-            SetBonusResistanceMod(SPELL_SCHOOL_NORMAL, bonusVal);
-        }
+        void SetArmor(int32 val, int32 /*bonusVal*/) { SetResistance(SPELL_SCHOOL_NORMAL, val); }
 
         int32 GetResistance(SpellSchools school) const { return m_unitData->Resistances[school]; }
-        int32 GetBonusResistanceMod(SpellSchools school) const { return m_unitData->BonusResistanceMods[school]; }
         int32 GetResistance(SpellSchoolMask mask) const;
         void SetResistance(SpellSchools school, int32 val) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::Resistances, school), val); }
-        void SetBonusResistanceMod(SpellSchools school, int32 val) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::BonusResistanceMods, school), val); }
         static float CalculateAverageResistReduction(WorldObject const* caster, SpellSchoolMask schoolMask, Unit const* victim, SpellInfo const* spellInfo = nullptr);
 
         uint64 GetHealth()    const { return m_unitData->Health; }
@@ -802,13 +778,12 @@ class TC_GAME_API Unit : public WorldObject
         virtual float GetArmorMultiplierForTarget(WorldObject const* /*target*/) const { return 1.0f; }
 
         Powers GetPowerType() const { return Powers(*m_unitData->DisplayPower); }
-        void SetPowerType(Powers power, bool sendUpdate = true, bool onInit = false);
-        void SetInitialPowerValue(Powers powerType);
+        void SetPowerType(Powers power, bool sendUpdate = true);
         void SetOverrideDisplayPowerId(uint32 powerDisplayId) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::OverrideDisplayPowerID), powerDisplayId); }
         Powers CalculateDisplayPowerType() const;
         void UpdateDisplayPower();
         int32 GetPower(Powers power) const;
-        int32 GetMinPower(Powers power) const { return power == POWER_LUNAR_POWER ? -100 : 0; }
+        int32 GetMinPower(Powers /*power*/) const { return 0; }
         int32 GetMaxPower(Powers power) const;
         float GetPowerPct(Powers power) const { return GetMaxPower(power) ? 100.f * GetPower(power) / GetMaxPower(power) : 0.0f; }
         int32 CountPctFromMaxPower(Powers power, int32 pct) const { return CalculatePct(GetMaxPower(power), pct); }
@@ -818,9 +793,6 @@ class TC_GAME_API Unit : public WorldObject
         inline void SetFullPower(Powers power) { SetPower(power, GetMaxPower(power)); }
         // returns the change in power
         int32 ModifyPower(Powers power, int32 val, bool withPowerUpdate = true);
-
-        void ApplyModManaCostMultiplier(float manaCostMultiplier, bool apply) { ApplyModUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::ManaCostMultiplier),  manaCostMultiplier, apply); }
-        void ApplyModManaCostModifier(SpellSchools school, int32 mod, bool apply) { ApplyModUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::ManaCostModifier, school), mod, apply); }
 
         uint32 GetBaseAttackTime(WeaponAttackType att) const;
         void SetBaseAttackTime(WeaponAttackType att, uint32 val);
@@ -851,8 +823,6 @@ class TC_GAME_API Unit : public WorldObject
         void ReplaceAllUnitFlags3(UnitFlags3 flags) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::Flags3), flags); }
 
         void SetCreatedBySpell(int32 spellId) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::CreatedBySpell), spellId); }
-
-        void SetNameplateAttachToGUID(ObjectGuid guid) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::NameplateAttachToGUID), guid); }
 
         Emote GetEmoteState() const { return Emote(*m_unitData->EmoteState); }
         void SetEmoteState(Emote emote) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::EmoteState), emote); }
@@ -904,8 +874,6 @@ class TC_GAME_API Unit : public WorldObject
         bool IsMounted() const { return HasUnitFlag(UNIT_FLAG_MOUNT); }
         uint32 GetMountDisplayId() const { return m_unitData->MountDisplayID; }
         void SetMountDisplayId(uint32 mountDisplayId) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::MountDisplayID), mountDisplayId); }
-        uint32 GetCosmeticMountDisplayId() const { return m_unitData->CosmeticMountDisplayID; }
-        void SetCosmeticMountDisplayId(uint32 mountDisplayId) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::CosmeticMountDisplayID), mountDisplayId); }
         void Mount(uint32 mount, uint32 vehicleId = 0, uint32 creatureEntry = 0);
         void Dismount();
         MountCapabilityEntry const* GetMountCapability(uint32 mountType) const;
@@ -956,7 +924,7 @@ class TC_GAME_API Unit : public WorldObject
         void DealSpellDamage(SpellNonMeleeDamage const* damageInfo, bool durabilityLoss);
 
         // player or player's pet resilience (-1%)
-        uint32 GetDamageReduction(uint32 damage) const { return GetCombatRatingDamageReduction(CR_RESILIENCE_PLAYER_DAMAGE, 1.0f, 100.0f, damage); }
+        uint32 GetDamageReduction(uint32 /*damage*/) const { return 0; }
 
         virtual bool CanApplyResilience() const;
         static void ApplyResilience(Unit const* victim, int32* damage);
@@ -983,17 +951,17 @@ class TC_GAME_API Unit : public WorldObject
 
         MeleeHitOutcome RollMeleeOutcomeAgainst(Unit const* victim, WeaponAttackType attType) const;
 
-        NPCFlags GetNpcFlags() const { return NPCFlags(*m_unitData->NpcFlags); }
-        bool HasNpcFlag(NPCFlags flags) const { return (m_unitData->NpcFlags & flags) != 0; }
-        void SetNpcFlag(NPCFlags flags) { SetUpdateFieldFlagValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::NpcFlags), flags); }
-        void RemoveNpcFlag(NPCFlags flags) { RemoveUpdateFieldFlagValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::NpcFlags), flags); }
-        void ReplaceAllNpcFlags(NPCFlags flags) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::NpcFlags), flags); }
+        NPCFlags GetNpcFlags() const { return NPCFlags(m_unitData->NpcFlags[0]); }
+        bool HasNpcFlag(NPCFlags flags) const { return (m_unitData->NpcFlags[0] & flags) != 0; }
+        void SetNpcFlag(NPCFlags flags) { SetUpdateFieldFlagValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::NpcFlags, 0), flags); }
+        void RemoveNpcFlag(NPCFlags flags) { RemoveUpdateFieldFlagValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::NpcFlags, 0), flags); }
+        void ReplaceAllNpcFlags(NPCFlags flags) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::NpcFlags, 0), flags); }
 
-        NPCFlags2 GetNpcFlags2() const { return NPCFlags2(*m_unitData->NpcFlags2); }
-        bool HasNpcFlag2(NPCFlags2 flags) const { return (m_unitData->NpcFlags2 & flags) != 0; }
-        void SetNpcFlag2(NPCFlags2 flags) { SetUpdateFieldFlagValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::NpcFlags2), flags); }
-        void RemoveNpcFlag2(NPCFlags2 flags) { RemoveUpdateFieldFlagValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::NpcFlags2), flags); }
-        void ReplaceAllNpcFlags2(NPCFlags2 flags) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::NpcFlags2), flags); }
+        NPCFlags2 GetNpcFlags2() const { return NPCFlags2(m_unitData->NpcFlags[1]); }
+        bool HasNpcFlag2(NPCFlags2 flags) const { return (m_unitData->NpcFlags[1] & flags) != 0; }
+        void SetNpcFlag2(NPCFlags2 flags) { SetUpdateFieldFlagValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::NpcFlags, 1), flags); }
+        void RemoveNpcFlag2(NPCFlags2 flags) { RemoveUpdateFieldFlagValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::NpcFlags, 1), flags); }
+        void ReplaceAllNpcFlags2(NPCFlags2 flags) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::NpcFlags, 1), flags); }
 
         bool IsVendor()         const { return HasNpcFlag(UNIT_NPC_FLAG_VENDOR); }
         bool IsTrainer()        const { return HasNpcFlag(UNIT_NPC_FLAG_TRAINER); }
@@ -1051,15 +1019,6 @@ class TC_GAME_API Unit : public WorldObject
         void SetInCombatWith(Unit* enemy, bool addSecondUnitSuppressed = false) { if (enemy) m_combatManager.SetInCombatWith(enemy, addSecondUnitSuppressed); }
         void ClearInCombat() { m_combatManager.EndAllCombat(); }
         void UpdatePetCombatState();
-
-        bool IsInteractionAllowedWhileHostile() const { return HasUnitFlag2(UNIT_FLAG2_INTERACT_WHILE_HOSTILE); }
-        virtual void SetInteractionAllowedWhileHostile(bool interactionAllowed);
-
-        bool IsInteractionAllowedInCombat() const { return HasUnitFlag3(UNIT_FLAG3_ALLOW_INTERACTION_WHILE_IN_COMBAT); }
-        virtual void SetInteractionAllowedInCombat(bool interactionAllowed);
-
-        virtual void UpdateNearbyPlayersInteractions();
-
         // Threat handling
         bool IsThreatened() const;
         bool IsThreatenedBy(Unit const* who) const { return who && m_threatManager.IsThreatenedBy(who, true); }
@@ -1119,7 +1078,7 @@ class TC_GAME_API Unit : public WorldObject
 
         void NearTeleportTo(Position const& pos, bool casting = false);
         void NearTeleportTo(float x, float y, float z, float orientation, bool casting = false) { NearTeleportTo(Position(x, y, z, orientation), casting); }
-        void SendTeleportPacket(TeleportLocation const& teleportLocation);
+        void SendTeleportPacket(Position const& pos);
         virtual bool UpdatePosition(float x, float y, float z, float ang, bool teleport = false);
         // returns true if unit's position really changed
         virtual bool UpdatePosition(Position const& pos, bool teleport = false);
@@ -1129,6 +1088,7 @@ class TC_GAME_API Unit : public WorldObject
         void SendMoveKnockBack(Player* player, float speedXY, float speedZ, float vcos, float vsin);
         void KnockbackFrom(Position const& origin, float speedXY, float speedZ, Movement::SpellEffectExtraData const* spellEffectExtraData = nullptr);
         void JumpTo(float speedXY, float speedZ, float angle, Optional<Position> dest = {});
+        void JumpTo(WorldObject* obj, float speedZ, bool withOrientation = false);
 
         void MonsterMoveWithSpeed(float x, float y, float z, float speed, bool generatePath = false, bool forceDestination = false);
 
@@ -1149,13 +1109,10 @@ class TC_GAME_API Unit : public WorldObject
         bool SetFeatherFall(bool enable);
         bool SetHover(bool enable, bool updateAnimTier = true);
         bool SetCollision(bool disable);
-        bool SetEnableFullSpeedTurning(bool enable);
         bool SetCanTransitionBetweenSwimAndFly(bool enable);
         bool SetCanTurnWhileFalling(bool enable);
         bool SetCanDoubleJump(bool enable);
         bool SetDisableInertia(bool disable);
-        bool SetCanAdvFly(bool enable);
-        bool SetMoveCantSwim(bool cantSwim);
         void SendSetVehicleRecId(uint32 vehicleId);
 
         MovementForces const* GetMovementForces() const { return _movementForces.get(); }
@@ -1252,8 +1209,6 @@ class TC_GAME_API Unit : public WorldObject
 
         uint32 GetBattlePetCompanionNameTimestamp() const { return m_unitData->BattlePetCompanionNameTimestamp; }
         void SetBattlePetCompanionNameTimestamp(uint32 timestamp) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::BattlePetCompanionNameTimestamp), timestamp); }
-        uint32 GetBattlePetCompanionExperience() const { return m_unitData->BattlePetCompanionExperience; }
-        void SetBattlePetCompanionExperience(uint32 experience) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::BattlePetCompanionExperience), experience); }
         uint32 GetWildBattlePetLevel() const { return m_unitData->WildBattlePetLevel; }
         void SetWildBattlePetLevel(uint32 wildBattlePetLevel) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::WildBattlePetLevel), wildBattlePetLevel); }
 
@@ -1415,15 +1370,16 @@ class TC_GAME_API Unit : public WorldObject
                 .ModifyValue(&UF::UnitData::ChannelData)
                 .ModifyValue(&UF::UnitChannel::SpellID), channelSpellId);
         }
-        uint32 GetChannelSpellXSpellVisualId() const { return m_unitData->ChannelData->SpellVisual.SpellXSpellVisualID; }
-        uint32 GetChannelScriptVisualId() const { return m_unitData->ChannelData->SpellVisual.ScriptVisualID; }
-        void SetChannelVisual(SpellCastVisual channelVisual)
+
+        uint32 GetChannelSpellXSpellVisualId() const { return m_unitData->ChannelData->SpellXSpellVisualID; }
+        void SetChannelSpellXSpellVisualId(uint32 channelSpellXSpellVisualId)
         {
             SetUpdateFieldValue(m_values
                 .ModifyValue(&Unit::m_unitData)
                 .ModifyValue(&UF::UnitData::ChannelData)
-                .ModifyValue(&UF::UnitChannel::SpellVisual), channelVisual);
+                .ModifyValue(&UF::UnitChannel::SpellXSpellVisualID), channelSpellXSpellVisualId);
         }
+
         void AddChannelObject(ObjectGuid guid) { AddDynamicUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::ChannelObjects)) = guid; }
         void SetChannelObject(uint32 slot, ObjectGuid guid) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::ChannelObjects, slot), guid); }
         void RemoveChannelObject(ObjectGuid guid)
@@ -1433,8 +1389,6 @@ class TC_GAME_API Unit : public WorldObject
                 RemoveDynamicUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::ChannelObjects), index);
         }
         void ClearChannelObjects() { ClearDynamicUpdateFieldValues(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::ChannelObjects)); }
-        int8 GetSpellEmpowerStage() const { return m_unitData->SpellEmpowerStage; }
-        void SetSpellEmpowerStage(int8 stage) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::SpellEmpowerStage), stage); }
 
         void SetCurrentCastSpell(Spell* pSpell);
         void InterruptSpell(CurrentSpellTypes spellType, bool withDelayed = true, bool withInstant = true);
@@ -1453,21 +1407,12 @@ class TC_GAME_API Unit : public WorldObject
         Spell* GetCurrentSpell(uint32 spellType) const { return m_currentSpells[spellType]; }
         Spell* FindCurrentSpellBySpellId(uint32 spell_id) const;
         int32 GetCurrentSpellCastTime(uint32 spell_id) const;
-        struct GetCastSpellInfoContext
-        {
-            std::array<uint32, 5> VisitedSpells = { };
-            bool AddSpell(uint32 spellId);
-        };
-        virtual SpellInfo const* GetCastSpellInfo(SpellInfo const* spellInfo, TriggerCastFlags& triggerFlag, GetCastSpellInfoContext* context) const;
+        virtual SpellInfo const* GetCastSpellInfo(SpellInfo const* spellInfo, TriggerCastFlags& triggerFlag) const;
         uint32 GetCastSpellXSpellVisualId(SpellInfo const* spellInfo) const override;
 
         virtual bool HasSpellFocus(Spell const* /*focusSpell*/ = nullptr) const { return false; }
         virtual bool IsMovementPreventedByCasting() const;
         bool CanCastSpellWhileMoving(SpellInfo const* spellInfo) const;
-
-        bool IsSilenced(SpellSchoolMask schoolMask) const { return (*m_unitData->SilencedSchoolMask & schoolMask) != 0; }
-        void SetSilencedSchoolMask(SpellSchoolMask schoolMask) { SetUpdateFieldFlagValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::SilencedSchoolMask), schoolMask); }
-        void ReplaceAllSilencedSchoolMask(SpellSchoolMask schoolMask) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::SilencedSchoolMask), schoolMask); }
 
         SpellHistory* GetSpellHistory() { return _spellHistory.get(); }
         SpellHistory const* GetSpellHistory() const { return _spellHistory.get(); }
@@ -1486,7 +1431,7 @@ class TC_GAME_API Unit : public WorldObject
         float m_modMeleeHitChance;
         float m_modRangedHitChance;
         float m_modSpellHitChance;
-        float m_baseSpellCritChance;
+        int32 m_baseSpellCritChance;
 
         std::array<uint32, MAX_ATTACK> m_baseAttackSpeed;
         std::array<float, MAX_ATTACK> m_modAttackSpeedPct;
@@ -1536,11 +1481,8 @@ class TC_GAME_API Unit : public WorldObject
         void SetRangedAttackPowerModPos(int32 attackPowerMod) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::RangedAttackPowerModPos), attackPowerMod); }
         void SetRangedAttackPowerModNeg(int32 attackPowerMod) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::RangedAttackPowerModNeg), attackPowerMod); }
         void SetRangedAttackPowerMultiplier(float attackPowerMult) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::RangedAttackPowerMultiplier), attackPowerMult); }
-        void SetMainHandWeaponAttackPower(int32 attackPower) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::MainHandWeaponAttackPower), attackPower); }
-        void SetOffHandWeaponAttackPower(int32 attackPower) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::OffHandWeaponAttackPower), attackPower); }
-        void SetRangedWeaponAttackPower(int32 attackPower) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::RangedWeaponAttackPower), attackPower); }
         virtual void UpdateDamagePhysical(WeaponAttackType attType);
-        float GetTotalAttackPowerValue(WeaponAttackType attType, bool includeWeapon = true) const;
+        float GetTotalAttackPowerValue(WeaponAttackType attType) const;
         float GetWeaponDamageRange(WeaponAttackType attType, WeaponDamageRange type) const;
         void SetBaseWeaponDamage(WeaponAttackType attType, WeaponDamageRange damageRange, float value) { m_weaponDamage[attType][damageRange] = value; }
         virtual void CalculateMinMaxDamage(WeaponAttackType attType, bool normalized, bool addTotalPct, float& minDamage, float& maxDamage) const = 0;
@@ -1562,11 +1504,10 @@ class TC_GAME_API Unit : public WorldObject
         uint32 m_lastSanctuaryTime;
 
         VisibleAuraContainer const& GetVisibleAuras() const { return m_visibleAuras; }
-        bool HasVisibleAura(AuraApplication* aurApp) const { return m_visibleAuras.contains(aurApp); }
+        bool HasVisibleAura(AuraApplication* aurApp) const { return m_visibleAuras.count(aurApp) > 0; }
         void SetVisibleAura(AuraApplication* aurApp);
-        void RemoveVisibleAura(AuraApplication* aurApp);
         void SetVisibleAuraUpdate(AuraApplication* aurApp) { m_visibleAurasToUpdate.insert(aurApp); }
-        void RemoveVisibleAuraUpdate(AuraApplication* aurApp) { m_visibleAurasToUpdate.erase(aurApp); }
+        void RemoveVisibleAura(AuraApplication* aurApp);
 
         bool HasInterruptFlag(SpellAuraInterruptFlags flags) const { return m_interruptMask.HasFlag(flags); }
         bool HasInterruptFlag(SpellAuraInterruptFlags2 flags) const { return m_interruptMask2.HasFlag(flags); }
@@ -1631,24 +1572,24 @@ class TC_GAME_API Unit : public WorldObject
         int32 MeleeDamageBonusDone(Unit* pVictim, int32 damage, WeaponAttackType attType, DamageEffectType damagetype, SpellInfo const* spellProto = nullptr, Mechanics mechanic = MECHANIC_NONE, SpellSchoolMask damageSchoolMask = SPELL_SCHOOL_MASK_NORMAL, Spell* spell = nullptr, AuraEffect const* aurEff = nullptr);
         int32 MeleeDamageBonusTaken(Unit* attacker, int32 pdamage, WeaponAttackType attType, DamageEffectType damagetype, SpellInfo const* spellProto = nullptr, SpellSchoolMask damageSchoolMask = SPELL_SCHOOL_MASK_NORMAL);
 
-        bool IsBlockCritical() const;
+        bool IsBlockCritical();
         float SpellCritChanceDone(Spell* spell, AuraEffect const* aurEff, SpellSchoolMask schoolMask, WeaponAttackType attackType = BASE_ATTACK) const;
         float SpellCritChanceTaken(Unit const* caster, Spell* spell, AuraEffect const* aurEff, SpellSchoolMask schoolMask, float doneChance, WeaponAttackType attackType = BASE_ATTACK) const;
         static uint32 SpellCriticalDamageBonus(Unit const* caster, SpellInfo const* spellProto, uint32 damage, Unit* victim);
         static uint32 SpellCriticalHealingBonus(Unit const* caster, SpellInfo const* spellProto, uint32 damage, Unit* victim);
+
+        void SetMP5RegenerationInterruptTime(uint32 spellCastTime) { _regenMP5InterruptStartTime = spellCastTime; }
+        bool IsPowerRegenInterruptedByMP5Rule() const;
 
         void ApplySpellImmune(uint32 spellId, SpellImmunity op, uint32 type, bool apply);
         bool IsImmunedToSpell(SpellInfo const* spellInfo, WorldObject const* caster, bool requireImmunityPurgesEffectAttribute = false) const;
         uint32 GetSchoolImmunityMask() const;
         uint32 GetDamageImmunityMask() const;
         uint64 GetMechanicImmunityMask() const;
-        EnumFlag<SpellOtherImmunity> GetSpellOtherImmunityMask() const;
 
         bool IsImmunedToDamage(SpellSchoolMask meleeSchoolMask) const;
-        bool IsImmunedToDamage(WorldObject const* caster, SpellInfo const* spellInfo, SpellEffectInfo const* spellEffectInfo = nullptr) const;
+        bool IsImmunedToDamage(SpellInfo const* spellInfo, SpellEffectInfo const* spellEffectInfo = nullptr) const;
         virtual bool IsImmunedToSpellEffect(SpellInfo const* spellInfo, SpellEffectInfo const& spellEffectInfo, WorldObject const* caster, bool requireImmunityPurgesEffectAttribute = false) const;
-
-        bool IsImmunedToAuraPeriodicTick(WorldObject const* caster, SpellInfo const* spellInfo, SpellEffectInfo const* spellEffectInfo = nullptr) const;
 
         static bool IsDamageReducedByArmor(SpellSchoolMask damageSchoolMask, SpellInfo const* spellInfo = nullptr);
         static uint32 CalcArmorReducedDamage(Unit const* attacker, Unit* victim, uint32 damage, SpellInfo const* spellInfo, WeaponAttackType attackType = MAX_ATTACK, uint8 attackerLevel = 0);
@@ -1661,14 +1602,6 @@ class TC_GAME_API Unit : public WorldObject
         float GetSpeedRate(UnitMoveType mtype) const { return m_speed_rate[mtype]; }
         void SetSpeed(UnitMoveType mtype, float newValue);
         void SetSpeedRate(UnitMoveType mtype, float rate);
-
-        int32 GetFlightCapabilityID() const { return m_unitData->FlightCapabilityID; }
-        void SetFlightCapabilityID(int32 flightCapabilityId, bool clientUpdate);
-        float GetAdvFlyingSpeed(AdvFlyingRateTypeSingle speedType) const { return m_advFlyingSpeed[speedType]; }
-        float GetAdvFlyingSpeedMin(AdvFlyingRateTypeRange speedType) const { return m_advFlyingSpeed[speedType]; }
-        float GetAdvFlyingSpeedMax(AdvFlyingRateTypeRange speedType) const { return m_advFlyingSpeed[speedType + 1]; }
-        void UpdateAdvFlyingSpeed(AdvFlyingRateTypeSingle speedType, bool clientUpdate);
-        void UpdateAdvFlyingSpeed(AdvFlyingRateTypeRange speedType, bool clientUpdate);
 
         void FollowerAdded(AbstractFollower* f) { m_followingMe.insert(f); }
         void FollowerRemoved(AbstractFollower* f) { m_followingMe.erase(f); }
@@ -1734,7 +1667,6 @@ class TC_GAME_API Unit : public WorldObject
         bool CreateVehicleKit(uint32 id, uint32 creatureEntry, bool loading = false);
         void RemoveVehicleKit(bool onRemoveFromWorld = false);
         Vehicle* GetVehicleKit() const { return m_vehicleKit.get(); }
-        Trinity::unique_weak_ptr<Vehicle> GetVehicleKitWeakPtr() const { return m_vehicleKit; }
         Vehicle* GetVehicle() const { return m_vehicle; }
         void SetVehicle(Vehicle* vehicle) { m_vehicle = vehicle; }
         bool IsOnVehicle(Unit const* vehicle) const;
@@ -1762,7 +1694,10 @@ class TC_GAME_API Unit : public WorldObject
         virtual bool CanEnterWater() const = 0;
         virtual bool CanSwim() const;
 
-        float GetHoverOffset() const { return HasUnitMovementFlag(MOVEMENTFLAG_HOVER) ? *m_unitData->HoverHeight : 0.0f; }
+        float GetHoverOffset() const
+        {
+            return HasUnitMovementFlag(MOVEMENTFLAG_HOVER) ? *m_unitData->HoverHeight : 0.0f;
+        }
 
         void RewardRage(uint32 baseRage);
 
@@ -1805,13 +1740,6 @@ class TC_GAME_API Unit : public WorldObject
         virtual void TextEmote(uint32 textId, WorldObject const* target = nullptr, bool isBossEmote = false);
         virtual void Whisper(uint32 textId, Player* target, bool isBossWhisper = false);
 
-        /**
-           @brief Clears boss emotes frame
-           @param zoneId Only clears emotes for players in that zone id
-           @param target Only clears emotes for that player
-        */
-        void ClearBossEmotes(Optional<uint32> zoneId = {}, Player const* target = nullptr) const;
-
         float GetCollisionHeight() const override;
         uint32 GetVirtualItemId(uint32 slot) const;
         uint16 GetVirtualItemAppearanceMod(uint32 slot) const;
@@ -1831,9 +1759,6 @@ class TC_GAME_API Unit : public WorldObject
         }
         void ClearWorldEffects() { ClearDynamicUpdateFieldValues(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::WorldEffects)); }
 
-        Vignettes::VignetteData const* GetVignette() const { return m_vignette.get(); }
-        void SetVignette(uint32 vignetteId);
-
         std::string GetDebugInfo() const override;
 
         UF::UpdateField<UF::UnitData, 0, TYPEID_UNIT> m_unitData;
@@ -1841,6 +1766,27 @@ class TC_GAME_API Unit : public WorldObject
     protected:
         explicit Unit (bool isWorldObject);
 
+        UF::UpdateFieldFlag GetUpdateFieldFlagsFor(Player const* target) const override;
+        void BuildValuesCreate(ByteBuffer* data, Player const* target) const override;
+        void BuildValuesUpdate(ByteBuffer* data, Player const* target) const override;
+
+    public:
+        void BuildValuesUpdateWithFlag(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const override;
+        void BuildValuesUpdateForPlayerWithMask(UpdateData* data, UF::ObjectData::Mask const& requestedObjectMask,
+            UF::UnitData::Mask const& requestedUnitMask, Player const* target) const;
+
+        struct ValuesUpdateForPlayerWithMaskSender // sender compatible with MessageDistDeliverer
+        {
+            explicit ValuesUpdateForPlayerWithMaskSender(Unit const* owner) : Owner(owner) { }
+
+            Unit const* Owner;
+            UF::ObjectData::Base ObjectMask;
+            UF::UnitData::Base UnitMask;
+
+            void operator()(Player const* player) const;
+        };
+
+    protected:
         void DestroyForPlayer(Player* target) const override;
         void ClearUpdateMask(bool remove) override;
 
@@ -1898,7 +1844,6 @@ class TC_GAME_API Unit : public WorldObject
         Trinity::Containers::FlatSet<AuraApplication*, VisibleAuraSlotCompare> m_visibleAurasToUpdate;
 
         std::array<float, MAX_MOVE_TYPE> m_speed_rate;
-        std::array<float, ADV_FLYING_MAX_SPEED_TYPE> m_advFlyingSpeed;
 
         Unit* m_unitMovedByMe;    // only ever set for players, and only for direct client control
         Player* m_playerMovingMe; // only set for direct client control (possess effects, vehicles and similar)
@@ -1913,12 +1858,10 @@ class TC_GAME_API Unit : public WorldObject
         uint32 m_regenTimer;
 
         Vehicle* m_vehicle;
-        Trinity::unique_trackable_ptr<Vehicle> m_vehicleKit;
+        std::unique_ptr<Vehicle> m_vehicleKit;
 
         uint32 m_unitTypeMask;
         LiquidTypeEntry const* _lastLiquid;
-
-        std::unique_ptr<Vignettes::VignetteData> m_vignette;
 
         bool IsAlwaysVisibleFor(WorldObject const* seer) const override;
         bool IsAlwaysDetectableFor(WorldObject const* seer) const override;
@@ -1943,7 +1886,6 @@ class TC_GAME_API Unit : public WorldObject
 
         void UpdateSplineMovement(uint32 t_diff);
         void UpdateSplinePosition();
-        void SendFlightSplineSyncUpdate();
         void InterruptMovementBasedAuras();
 
         // player or player's pet
@@ -1962,7 +1904,9 @@ class TC_GAME_API Unit : public WorldObject
 
     private:
 
+        uint32 _regenMP5InterruptStartTime;
         uint32 m_state;                                     // Even derived shouldn't modify
+        TimeTracker m_splineSyncTimer;
 
         Diminishing m_Diminishing;
 

@@ -94,13 +94,13 @@ ByteBuffer& operator<<(ByteBuffer& data, AuraDataInfo const& auraData)
     data << uint16(auraData.CastLevel);
     data << uint8(auraData.Applications);
     data << int32(auraData.ContentTuningID);
-    data << OptionalInit(auraData.CastUnit);
-    data << OptionalInit(auraData.Duration);
-    data << OptionalInit(auraData.Remaining);
-    data << OptionalInit(auraData.TimeMod);
-    data << BitsSize<6>(auraData.Points);
-    data << BitsSize<6>(auraData.EstimatedPoints);
-    data << OptionalInit(auraData.ContentTuning);
+    data.WriteBit(auraData.CastUnit.has_value());
+    data.WriteBit(auraData.Duration.has_value());
+    data.WriteBit(auraData.Remaining.has_value());
+    data.WriteBit(auraData.TimeMod.has_value());
+    data.WriteBits(auraData.Points.size(), 6);
+    data.WriteBits(auraData.EstimatedPoints.size(), 6);
+    data.WriteBit(auraData.ContentTuning.has_value());
 
     if (auraData.ContentTuning)
         data << *auraData.ContentTuning;
@@ -129,7 +129,7 @@ ByteBuffer& operator<<(ByteBuffer& data, AuraDataInfo const& auraData)
 ByteBuffer& operator<<(ByteBuffer& data, AuraInfo const& aura)
 {
     data << aura.Slot;
-    data << OptionalInit(aura.AuraData);
+    data.WriteBit(aura.AuraData.has_value());
     data.FlushBits();
 
     if (aura.AuraData)
@@ -141,7 +141,7 @@ ByteBuffer& operator<<(ByteBuffer& data, AuraInfo const& aura)
 WorldPacket const* AuraUpdate::Write()
 {
     _worldPacket.WriteBit(UpdateAll);
-    _worldPacket << BitsSize<9>(Auras);
+    _worldPacket.WriteBits(Auras.size(), 9);
     for (AuraInfo const& aura : Auras)
         _worldPacket << aura;
 
@@ -225,7 +225,6 @@ ByteBuffer& operator>>(ByteBuffer& buffer, SpellCastRequest& request)
     request.OptionalCurrencies.resize(buffer.read<uint32>());
     request.OptionalReagents.resize(buffer.read<uint32>());
     request.RemovedModifications.resize(buffer.read<uint32>());
-    buffer >> request.CraftingFlags;
 
     for (SpellExtraCurrencyCost& optionalCurrency : request.OptionalCurrencies)
         buffer >> optionalCurrency;
@@ -332,16 +331,10 @@ ByteBuffer& operator<<(ByteBuffer& data, SpellMissStatus const& spellMissStatus)
     return data;
 }
 
-ByteBuffer& operator<<(ByteBuffer& data, SpellHitStatus const& spellHitStatus)
-{
-    data << uint8(spellHitStatus.Reason);
-    return data;
-}
-
 ByteBuffer& operator<<(ByteBuffer& data, SpellPowerData const& spellPowerData)
 {
-    data << int8(spellPowerData.Type);
     data << int32(spellPowerData.Cost);
+    data << int8(spellPowerData.Type);
     return data;
 }
 
@@ -390,17 +383,18 @@ ByteBuffer& operator<<(ByteBuffer& data, SpellCastData const& spellCastData)
     data << uint32(spellCastData.CastFlagsEx);
     data << uint32(spellCastData.CastTime);
     data << spellCastData.MissileTrajectory;
-    data << int32(spellCastData.AmmoDisplayID);
     data << uint8(spellCastData.DestLocSpellCastIndex);
     data << spellCastData.Immunities;
     data << spellCastData.Predict;
+
     data.WriteBits(spellCastData.HitTargets.size(), 16);
     data.WriteBits(spellCastData.MissTargets.size(), 16);
-    data.WriteBits(spellCastData.HitStatus.size(), 16);
     data.WriteBits(spellCastData.MissStatus.size(), 16);
     data.WriteBits(spellCastData.RemainingPower.size(), 9);
     data.WriteBit(spellCastData.RemainingRunes.has_value());
     data.WriteBits(spellCastData.TargetPoints.size(), 16);
+    data.WriteBit(spellCastData.AmmoDisplayID.has_value());
+    data.WriteBit(spellCastData.AmmoInventoryType.has_value());
     data.FlushBits();
 
     data << spellCastData.Target;
@@ -410,9 +404,6 @@ ByteBuffer& operator<<(ByteBuffer& data, SpellCastData const& spellCastData)
 
     for (ObjectGuid const& missTarget : spellCastData.MissTargets)
         data << missTarget;
-
-    for (SpellHitStatus const& hitStatus : spellCastData.HitStatus)
-        data << hitStatus;
 
     for (SpellMissStatus const& missStatus : spellCastData.MissStatus)
         data << missStatus;
@@ -425,6 +416,12 @@ ByteBuffer& operator<<(ByteBuffer& data, SpellCastData const& spellCastData)
 
     for (TargetLocation const& targetLoc : spellCastData.TargetPoints)
         data << targetLoc;
+
+    if (spellCastData.AmmoDisplayID.has_value())
+        data << int32(*spellCastData.AmmoDisplayID);
+
+    if (spellCastData.AmmoInventoryType.has_value())
+        data << int32(*spellCastData.AmmoInventoryType);
 
     return data;
 }
@@ -751,7 +748,6 @@ WorldPacket const* PlayOrphanSpellVisual::Write()
     _worldPacket << SourceRotation;
     _worldPacket << TargetLocation;
     _worldPacket << Target;
-    _worldPacket << TargetTransport;
     _worldPacket << int32(SpellVisualID);
     _worldPacket << float(TravelSpeed);
     _worldPacket << float(LaunchDelay);
@@ -850,76 +846,6 @@ WorldPacket const* SpellChannelUpdate::Write()
 {
     _worldPacket << CasterGUID;
     _worldPacket << int32(TimeRemaining);
-    return &_worldPacket;
-}
-
-WorldPacket const* SpellEmpowerStart::Write()
-{
-    _worldPacket << CastID;
-    _worldPacket << CasterGUID;
-    _worldPacket << uint32(Targets.size());
-    _worldPacket << int32(SpellID);
-    _worldPacket << Visual;
-    _worldPacket << EmpowerDuration;
-    _worldPacket << MinHoldTime;
-    _worldPacket << HoldAtMaxTime;
-    _worldPacket << uint32(StageDurations.size());
-
-    for (ObjectGuid const& target : Targets)
-        _worldPacket << target;
-
-    for (Duration<Milliseconds, uint32> stageDuration : StageDurations)
-        _worldPacket << stageDuration;
-
-    _worldPacket.WriteBit(InterruptImmunities.has_value());
-    _worldPacket.WriteBit(HealPrediction.has_value());
-    _worldPacket.FlushBits();
-
-    if (InterruptImmunities)
-        _worldPacket << *InterruptImmunities;
-
-    if (HealPrediction)
-        _worldPacket << *HealPrediction;
-
-    return &_worldPacket;
-}
-
-WorldPacket const* SpellEmpowerUpdate::Write()
-{
-    _worldPacket << CastID;
-    _worldPacket << CasterGUID;
-    _worldPacket << TimeRemaining;
-    _worldPacket << uint32(StageDurations.size());
-    _worldPacket << uint8(Status);
-    _worldPacket.FlushBits();
-
-    for (Duration<Milliseconds, uint32> stageDuration : StageDurations)
-        _worldPacket << stageDuration;
-
-    return &_worldPacket;
-}
-
-void SetEmpowerMinHoldStagePercent::Read()
-{
-    _worldPacket >> MinHoldStagePercent;
-}
-
-void SpellEmpowerRelease::Read()
-{
-    _worldPacket >> SpellID;
-}
-
-void SpellEmpowerRestart::Read()
-{
-    _worldPacket >> SpellID;
-}
-
-WorldPacket const* SpellEmpowerSetStage::Write()
-{
-    _worldPacket << CastID;
-    _worldPacket << CasterGUID;
-    _worldPacket << int32(Stage);
-
     return &_worldPacket;
 }
 

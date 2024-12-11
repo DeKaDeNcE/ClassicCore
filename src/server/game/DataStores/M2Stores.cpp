@@ -21,7 +21,6 @@
 #include "Log.h"
 #include "M2Structure.h"
 #include "Timer.h"
-#include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 #include <G3D/Vector4.h>
 #include <fstream>
@@ -192,7 +191,8 @@ TC_GAME_API void LoadM2Cameras(std::string const& dataPath)
             continue;
 
         // Get file size
-        std::streamoff fileSize = boost::filesystem::file_size(filename);
+        m2file.seekg(0, std::ios::end);
+        std::streamoff fileSize = m2file.tellg();
 
         // Reject if not at least the size of the header
         if (static_cast<uint32>(fileSize) < sizeof(M2Header) + 4)
@@ -203,6 +203,7 @@ TC_GAME_API void LoadM2Cameras(std::string const& dataPath)
         }
 
         // Read 4 bytes (signature)
+        m2file.seekg(0, std::ios::beg);
         char fileCheck[5];
         m2file.read(fileCheck, 4);
         fileCheck[4] = '\0';

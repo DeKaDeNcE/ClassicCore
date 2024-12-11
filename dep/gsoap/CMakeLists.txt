@@ -20,7 +20,7 @@ target_include_directories(gsoap
 
 target_compile_definitions(gsoap
   PUBLIC
-    WITH_OPENSSL)
+    -DWITH_OPENSSL)
 
 target_link_libraries(gsoap
   PRIVATE
@@ -37,5 +37,5 @@ if (MSVC)
   # Little fix for MSVC / Windows platforms
   target_compile_definitions(gsoap
     PRIVATE
-      _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES=0)
+      -D_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES=0)
 endif()

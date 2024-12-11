@@ -23,7 +23,6 @@
 #include "DatabaseEnvFwd.h"
 #include "StringFormat.h"
 #include <array>
-#include <atomic>
 #include <string>
 #include <vector>
 
@@ -204,11 +203,12 @@ class DatabaseWorkerPool
         //! Keeps all our MySQL connections alive, prevent the server from disconnecting us.
         void KeepAlive();
 
+        void WarnAboutSyncQueries([[maybe_unused]] bool warn)
+        {
 #ifdef TRINITY_DEBUG
-        static void WarnAboutSyncQueries(bool warn);
-#else
-        static void WarnAboutSyncQueries([[maybe_unused]] bool warn) { }
+            _warnSyncQueries = warn;
 #endif
+        }
 
         size_t QueueSize() const;
 
@@ -235,6 +235,9 @@ class DatabaseWorkerPool
         std::unique_ptr<MySQLConnectionInfo> _connectionInfo;
         std::vector<uint8> _preparedStatementSize;
         uint8 _async_threads, _synch_threads;
+#ifdef TRINITY_DEBUG
+        static inline thread_local bool _warnSyncQueries = false;
+#endif
 };
 
 #endif

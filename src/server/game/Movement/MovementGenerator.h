@@ -22,8 +22,6 @@
 #include "FactoryHolder.h"
 #include "MovementDefines.h"
 #include "ObjectRegistry.h"
-#include "Optional.h"
-#include "ScriptActionResult.h"
 
 class Creature;
 class Unit;
@@ -50,11 +48,7 @@ enum MovementGeneratorFlags : uint16
 class TC_GAME_API MovementGenerator
 {
     public:
-        explicit MovementGenerator() : Mode(0), Priority(0), Flags(MOVEMENTGENERATOR_FLAG_NONE), BaseUnitState(0) { }
-        MovementGenerator(MovementGenerator const&) = delete;
-        MovementGenerator(MovementGenerator&&) = delete;
-        MovementGenerator& operator=(MovementGenerator const&) = delete;
-        MovementGenerator& operator=(MovementGenerator&&) = delete;
+        MovementGenerator() : Mode(0), Priority(0), Flags(MOVEMENTGENERATOR_FLAG_NONE), BaseUnitState(0) { }
         virtual ~MovementGenerator();
 
         // on top first update
@@ -71,9 +65,9 @@ class TC_GAME_API MovementGenerator
 
         virtual void UnitSpeedChanged() { }
         // timer in ms
-        virtual void Pause(uint32/* timer*/) { }
+        virtual void Pause(uint32/* timer = 0*/) { }
         // timer in ms
-        virtual void Resume(uint32/* overrideTimer*/) { }
+        virtual void Resume(uint32/* overrideTimer = 0*/) { }
         // used by Evade code for select point to evade with expected restart default movement
         virtual bool GetResetPosition(Unit*, float&/* x*/, float&/* y*/, float&/* z*/) { return false; }
 
@@ -87,10 +81,6 @@ class TC_GAME_API MovementGenerator
         uint8 Priority;
         uint16 Flags;
         uint32 BaseUnitState;
-        Optional<Scripting::v2::ActionResultSetter<MovementStopReason>> ScriptResult;
-
-    protected:
-        void SetScriptResult(MovementStopReason reason);
 };
 
 template<class T, class D>
@@ -125,23 +115,34 @@ class MovementGeneratorMedium : public MovementGenerator
 
 typedef FactoryHolder<MovementGenerator, Unit, MovementGeneratorType> MovementGeneratorCreator;
 
+template<class Movement>
+struct MovementGeneratorFactory : public MovementGeneratorCreator
+{
+    MovementGeneratorFactory(MovementGeneratorType movementGeneratorType) : MovementGeneratorCreator(movementGeneratorType) { }
+
+    MovementGenerator* Create(Unit* /*object*/) const override
+    {
+        return new Movement();
+    }
+};
+
 struct IdleMovementFactory : public MovementGeneratorCreator
 {
-    IdleMovementFactory() : MovementGeneratorCreator(IDLE_MOTION_TYPE) { }
+    IdleMovementFactory();
 
     MovementGenerator* Create(Unit* object) const override;
 };
 
 struct RandomMovementFactory : public MovementGeneratorCreator
 {
-    RandomMovementFactory() : MovementGeneratorCreator(RANDOM_MOTION_TYPE) { }
+    RandomMovementFactory();
 
     MovementGenerator* Create(Unit* object) const override;
 };
 
 struct WaypointMovementFactory : public MovementGeneratorCreator
 {
-    WaypointMovementFactory() : MovementGeneratorCreator(WAYPOINT_MOTION_TYPE) { }
+    WaypointMovementFactory();
 
     MovementGenerator* Create(Unit* object) const override;
 };

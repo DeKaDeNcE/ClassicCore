@@ -35,9 +35,12 @@ GameTable<GtCombatRatingsMultByILvl>            sCombatRatingsMultByILvlGameTabl
 GameTable<GtHpPerStaEntry>                      sHpPerStaGameTable;
 GameTable<GtItemSocketCostPerLevelEntry>        sItemSocketCostPerLevelGameTable;
 GameTable<GtNpcManaCostScalerEntry>             sNpcManaCostScalerGameTable;
+GameTable<GtOCTRegenHPEntry>                    sOCTRegenHPGameTable;
+GameTable<GtOCTRegenMPEntry>                    sOCTRegenMPGameTable;
+GameTable<GtRegenHPPerSptEntry>                 sRegenHPPerSptGameTable;
+GameTable<GtRegenMPPerSptEntry>                 sRegenMPPerSptGameTable;
+GameTable<GtShieldBlockRegularEntry>            sShieldBlockRegularGameTable;
 GameTable<GtSpellScalingEntry>                  sSpellScalingGameTable;
-GameTable<GtStaminaMultByILvl>                  sStaminaMultByILvlGameTable;
-GameTable<GtXpEntry>                            sXpGameTable;
 
 template<class T>
 inline uint32 LoadGameTable(std::vector<std::string>& errors, GameTable<T>& storage, boost::filesystem::path const& path)
@@ -110,11 +113,7 @@ void LoadGameTables(std::string const& dataPath)
     std::vector<std::string> bad_gt_files;
     uint32 gameTableCount = 0, expectedGameTableCount = 0;
 
-    auto LOAD_GT = [&]<typename T>(GameTable<T>& gameTable, char const* file)
-    {
-        gameTableCount += LoadGameTable(bad_gt_files, gameTable, gtPath / file);
-        ++expectedGameTableCount;
-    };
+#define LOAD_GT(store, file) gameTableCount += LoadGameTable(bad_gt_files, store, gtPath / file); ++expectedGameTableCount;
 
     LOAD_GT(sArtifactKnowledgeMultiplierGameTable, "ArtifactKnowledgeMultiplier.txt");
     LOAD_GT(sArtifactLevelXPGameTable, "ArtifactLevelXP.txt");
@@ -126,9 +125,12 @@ void LoadGameTables(std::string const& dataPath)
     LOAD_GT(sItemSocketCostPerLevelGameTable, "ItemSocketCostPerLevel.txt");
     LOAD_GT(sHpPerStaGameTable, "HpPerSta.txt");
     LOAD_GT(sNpcManaCostScalerGameTable, "NPCManaCostScaler.txt");
+    LOAD_GT(sOCTRegenHPGameTable, "OCTRegenHP.txt");
+    LOAD_GT(sOCTRegenMPGameTable, "OCTRegenMP.txt");
+    LOAD_GT(sRegenHPPerSptGameTable, "RegenHPPerSpt.txt");
+    LOAD_GT(sRegenMPPerSptGameTable, "RegenMPPerSpt.txt");
+    LOAD_GT(sShieldBlockRegularGameTable, "ShieldBlockRegular.txt");
     LOAD_GT(sSpellScalingGameTable, "SpellScaling.txt");
-    LOAD_GT(sStaminaMultByILvlGameTable, "StaminaMultByILvl.txt");
-    LOAD_GT(sXpGameTable, "xp.txt");
 
 #undef LOAD_GT
 
@@ -144,34 +146,3 @@ void LoadGameTables(std::string const& dataPath)
 
     TC_LOG_INFO("server.loading", ">> Initialized {} GameTables in {} ms", gameTableCount, GetMSTimeDiffToNow(oldMSTime));
 }
-
-template<class T>
-float GetIlvlStatMultiplier(T const* row, InventoryType invType)
-{
-    switch (invType)
-    {
-        case INVTYPE_NECK:
-        case INVTYPE_FINGER:
-            return row->JewelryMultiplier;
-            break;
-        case INVTYPE_TRINKET:
-            return row->TrinketMultiplier;
-            break;
-        case INVTYPE_WEAPON:
-        case INVTYPE_SHIELD:
-        case INVTYPE_RANGED:
-        case INVTYPE_2HWEAPON:
-        case INVTYPE_WEAPONMAINHAND:
-        case INVTYPE_WEAPONOFFHAND:
-        case INVTYPE_HOLDABLE:
-        case INVTYPE_RANGEDRIGHT:
-            return row->WeaponMultiplier;
-            break;
-        default:
-            return row->ArmorMultiplier;
-            break;
-    }
-}
-
-template float GetIlvlStatMultiplier(GtCombatRatingsMultByILvl const* row, InventoryType invType);
-template float GetIlvlStatMultiplier(GtStaminaMultByILvl const* row, InventoryType invType);

@@ -198,27 +198,11 @@ void ConversationDataStore::LoadConversationTemplates()
         TC_LOG_INFO("server.loading", ">> Loaded 0 Conversation actors. DB table `conversation_actors` is empty.");
     }
 
-    // TODO: Remove this hack when NextConversationLineID is changed to uint32
-    auto getNextConversationLineId = [&](ConversationLineEntry const* conversationLine)
-    {
-        if (conversationLine && conversationLine->NextConversationLineID)
-        {
-            static constexpr uint32 FirstLineId = 60000; // Arbitrary id to cover the affected rows
-
-            if (conversationLine->ID > FirstLineId && conversationLine->NextConversationLineID < (sConversationLineStore.GetNumRows() - USHRT_MAX - 1))
-                return (uint32)(USHRT_MAX + conversationLine->NextConversationLineID + 1);
-
-            return (uint32)conversationLine->NextConversationLineID;
-        }
-
-        return 0u;
-    };
-
     // Validate FirstLineId
     std::unordered_map<uint32, uint32> prevConversationLineIds;
     for (ConversationLineEntry const* conversationLine : sConversationLineStore)
-        if (uint32 nextConversationLineId = getNextConversationLineId(conversationLine))
-            prevConversationLineIds[nextConversationLineId] = conversationLine->ID;
+        if (conversationLine->NextConversationLineID)
+            prevConversationLineIds[conversationLine->NextConversationLineID] = conversationLine->ID;
 
     auto getFirstLineIdFromAnyLineId = [&](uint32 lineId)
     {
@@ -264,11 +248,10 @@ void ConversationDataStore::LoadConversationTemplates()
                 else
                     TC_LOG_ERROR("sql.sql", "Table `conversation_line_template` has missing template for line (ID: {}) in Conversation {}, skipped", currentConversationLine->ID, conversationTemplate.Id);
 
-                uint32 nextConversationLineId = getNextConversationLineId(currentConversationLine);
-                if (!nextConversationLineId)
+                if (!currentConversationLine->NextConversationLineID)
                     break;
 
-                currentConversationLine = sConversationLineStore.AssertEntry(nextConversationLineId);
+                currentConversationLine = sConversationLineStore.AssertEntry(currentConversationLine->NextConversationLineID);
             }
 
             _conversationTemplateStore[conversationTemplate.Id] = std::move(conversationTemplate);

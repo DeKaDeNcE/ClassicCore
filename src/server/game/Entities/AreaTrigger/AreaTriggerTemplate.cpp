@@ -73,10 +73,9 @@ float AreaTriggerShapeInfo::GetMaxSearchRadius() const
     return 0.0f;
 }
 
-AreaTriggerTemplate::AreaTriggerTemplate() : Flags(AreaTriggerFlag::None), ActionSetFlags(AreaTriggerActionSetFlag::None)
+AreaTriggerTemplate::AreaTriggerTemplate() : Flags(AreaTriggerFlag::None)
 {
     Id = { 0, false };
-    ActionSetId = 0;
 }
 
 AreaTriggerTemplate::~AreaTriggerTemplate() = default;

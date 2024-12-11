@@ -17,12 +17,11 @@
 
 #include "Loot.h"
 #include "Containers.h"
-#include "DB2Stores.h"
 #include "DatabaseEnv.h"
+#include "DB2Stores.h"
 #include "GameTime.h"
 #include "Group.h"
 #include "Item.h"
-#include "ItemBonusMgr.h"
 #include "ItemTemplate.h"
 #include "Log.h"
 #include "LootMgr.h"
@@ -40,26 +39,26 @@
 //
 
 // Constructor, copies most fields from LootStoreItem and generates random count
-LootItem::LootItem(LootStoreItem const& li) : itemid(li.itemid), conditions(li.conditions), needs_quest(li.needs_quest)
+LootItem::LootItem(LootStoreItem const& li)
 {
-    switch (li.type)
-    {
-        case LootStoreItem::Type::Item:
-        {
-            randomBonusListId = GenerateItemRandomBonusListId(itemid);
-            type = LootItemType::Item;
-            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemid);
-            freeforall = proto && proto->HasFlag(ITEM_FLAG_MULTI_DROP);
-            follow_loot_rules = !li.needs_quest || (proto && proto->HasFlag(ITEM_FLAGS_CU_FOLLOW_LOOT_RULES));
-            break;
-        }
-        case LootStoreItem::Type::Currency:
-            type = LootItemType::Currency;
-            freeforall = true;
-            break;
-        default:
-            break;
-    }
+    itemid = li.itemid;
+    LootListId = 0;
+    conditions = li.conditions;
+
+    ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemid);
+    freeforall = proto && proto->HasFlag(ITEM_FLAG_MULTI_DROP);
+    follow_loot_rules = !li.needs_quest || (proto && proto->HasFlag(ITEM_FLAGS_CU_FOLLOW_LOOT_RULES));
+
+    needs_quest = li.needs_quest;
+
+    randomProperties = sItemEnchantmentMgr->GenerateRandomProperties(itemid);
+    context = ItemContext::NONE;
+    count = 0;
+    is_looted = false;
+    is_blocked = false;
+    is_underthreshold = false;
+    is_counted = false;
+    rollWinnerGUID = ObjectGuid::Empty;
 }
 
 LootItem::LootItem(LootItem const&) = default;
@@ -71,35 +70,10 @@ LootItem::~LootItem() = default;
 // Basic checks for player/item compatibility - if false no chance to see the item in the loot
 bool LootItem::AllowedForPlayer(Player const* player, Loot const* loot) const
 {
-    switch (type)
-    {
-        case LootItemType::Item:
-            return ItemAllowedForPlayer(player, loot, itemid, needs_quest, follow_loot_rules, false, conditions);
-        case LootItemType::Currency:
-            return CurrencyAllowedForPlayer(player, itemid, needs_quest, conditions);
-        default:
-            break;
-    }
-    return false;
+    return AllowedForPlayer(player, loot, itemid, needs_quest, follow_loot_rules, false, conditions);
 }
 
-bool LootItem::AllowedForPlayer(Player const* player, LootStoreItem const& lootStoreItem, bool strictUsabilityCheck)
-{
-    switch (lootStoreItem.type)
-    {
-        case LootStoreItem::Type::Item:
-            return ItemAllowedForPlayer(player, nullptr, lootStoreItem.itemid, lootStoreItem.needs_quest,
-                !lootStoreItem.needs_quest || ASSERT_NOTNULL(sObjectMgr->GetItemTemplate(lootStoreItem.itemid))->HasFlag(ITEM_FLAGS_CU_FOLLOW_LOOT_RULES),
-                strictUsabilityCheck, lootStoreItem.conditions);
-        case LootStoreItem::Type::Currency:
-            return CurrencyAllowedForPlayer(player, lootStoreItem.itemid, lootStoreItem.needs_quest, lootStoreItem.conditions);
-        default:
-            break;
-    }
-    return false;
-}
-
-bool LootItem::ItemAllowedForPlayer(Player const* player, Loot const* loot, uint32 itemid, bool needs_quest, bool follow_loot_rules, bool strictUsabilityCheck,
+bool LootItem::AllowedForPlayer(Player const* player, Loot const* loot, uint32 itemid, bool needs_quest, bool follow_loot_rules, bool strictUsabilityCheck,
     ConditionsReference const& conditions)
 {
     // DB conditions check
@@ -153,38 +127,14 @@ bool LootItem::ItemAllowedForPlayer(Player const* player, Loot const* loot, uint
     return true;
 }
 
-bool LootItem::CurrencyAllowedForPlayer(Player const* player, uint32 currencyId, bool needs_quest, ConditionsReference const& conditions)
-{
-    // DB conditions check
-    if (!conditions.Meets(player))
-        return false;
-
-    CurrencyTypesEntry const* currency = sCurrencyTypesStore.LookupEntry(currencyId);
-    if (!currency)
-        return false;
-
-    // not show loot for not own team
-    if (currency->GetFlags().HasFlag(CurrencyTypesFlags::IsHordeOnly) && player->GetTeam() != HORDE)
-        return false;
-
-    if (currency->GetFlags().HasFlag(CurrencyTypesFlags::IsAllianceOnly) && player->GetTeam() != ALLIANCE)
-        return false;
-
-    // check quest requirements
-    if (needs_quest && !player->HasQuestForCurrency(currencyId))
-        return false;
-
-    return true;
-}
-
-void LootItem::AddAllowedLooter(Player const* player)
+void LootItem::AddAllowedLooter(const Player* player)
 {
     allowedGUIDs.insert(player->GetGUID());
 }
 
 bool LootItem::HasAllowedLooter(ObjectGuid const& looter) const
 {
-    return allowedGUIDs.contains(looter);
+    return allowedGUIDs.find(looter) != allowedGUIDs.end();
 }
 
 Optional<LootSlotType> LootItem::GetUiTypeForPlayer(Player const* player, Loot const& loot) const
@@ -192,18 +142,18 @@ Optional<LootSlotType> LootItem::GetUiTypeForPlayer(Player const* player, Loot c
     if (is_looted)
         return {};
 
-    if (!allowedGUIDs.contains(player->GetGUID()))
+    if (allowedGUIDs.find(player->GetGUID()) == allowedGUIDs.end())
         return {};
 
     if (freeforall)
     {
-        if (NotNormalLootItemList const* ffaItems = Trinity::Containers::MapGetValuePtr(loot.GetPlayerFFAItems(), player->GetGUID()))
+        if (std::unique_ptr<NotNormalLootItemList> const* ffaItems = Trinity::Containers::MapGetValuePtr(loot.GetPlayerFFAItems(), player->GetGUID()))
         {
-            auto ffaItemItr = std::ranges::find_if(*ffaItems, [&](NotNormalLootItem const& ffaItem)
+            auto ffaItemItr = std::find_if(ffaItems->get()->begin(), ffaItems->get()->end(), [&](NotNormalLootItem const& ffaItem)
             {
                 return ffaItem.LootListId == LootListId;
             });
-            if (ffaItemItr != ffaItems->end() && !ffaItemItr->is_looted)
+            if (ffaItemItr != ffaItems->get()->end() && !ffaItemItr->is_looted)
                 return loot.GetLootMethod() == FREE_FOR_ALL ? LOOT_SLOT_TYPE_OWNER : LOOT_SLOT_TYPE_ALLOW_LOOT;
         }
         return {};
@@ -482,7 +432,7 @@ bool LootRoll::TryToStart(Map* map, Loot& loot, uint32 lootListId, uint16 enchan
         m_voteMask = ROLL_ALL_TYPE_MASK;
         if (itemTemplate->HasFlag(ITEM_FLAG2_CAN_ONLY_ROLL_GREED))
             m_voteMask = RollMask(m_voteMask & ~ROLL_FLAG_TYPE_NEED);
-        if (Optional<uint16> disenchantSkillRequired = GetItemDisenchantSkillRequired(); !disenchantSkillRequired || disenchantSkillRequired > enchantingSkill)
+        if (ItemDisenchantLootEntry const* disenchant = GetItemDisenchantLoot(); !disenchant || disenchant->SkillRequired > enchantingSkill)
             m_voteMask = RollMask(m_voteMask & ~ROLL_FLAG_TYPE_DISENCHANT);
 
         if (playerCount > 1)                                    // check if more than one player can loot this item
@@ -606,7 +556,7 @@ bool LootRoll::AllPlayerVoted(RollVoteMap::const_iterator& winnerItr)
     return notVoted == 0;
 }
 
-Optional<uint32> LootRoll::GetItemDisenchantLootId() const
+ItemDisenchantLootEntry const* LootRoll::GetItemDisenchantLoot() const
 {
     WorldPackets::Item::ItemInstance itemInstance;
     itemInstance.Initialize(*m_lootItem);
@@ -614,43 +564,11 @@ Optional<uint32> LootRoll::GetItemDisenchantLootId() const
     BonusData bonusData;
     bonusData.Initialize(itemInstance);
     if (!bonusData.CanDisenchant)
-        return {};
-
-    if (bonusData.DisenchantLootId)
-        return bonusData.DisenchantLootId;
+        return nullptr;
 
     ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(m_lootItem->itemid);
-
-    // ignore temporary item level scaling (pvp or timewalking)
-    uint32 itemLevel = Item::GetItemLevel(itemTemplate, bonusData, bonusData.RequiredLevel, 0, 0, 0, 0, false, 0);
-
-    ItemDisenchantLootEntry const* disenchantLoot = Item::GetBaseDisenchantLoot(itemTemplate, bonusData.Quality, itemLevel);
-    if (!disenchantLoot)
-        return {};
-
-    return disenchantLoot->ID;
-}
-
-Optional<uint16> LootRoll::GetItemDisenchantSkillRequired() const
-{
-    WorldPackets::Item::ItemInstance itemInstance;
-    itemInstance.Initialize(*m_lootItem);
-
-    BonusData bonusData;
-    bonusData.Initialize(itemInstance);
-    if (!bonusData.CanDisenchant)
-        return {};
-
-    ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(m_lootItem->itemid);
-
-    // ignore temporary item level scaling (pvp or timewalking)
-    uint32 itemLevel = Item::GetItemLevel(itemTemplate, bonusData, bonusData.RequiredLevel, 0, 0, 0, 0, false, 0);
-
-    ItemDisenchantLootEntry const* disenchantLoot = Item::GetBaseDisenchantLoot(itemTemplate, bonusData.Quality, itemLevel);
-    if (!disenchantLoot)
-        return {};
-
-    return disenchantLoot->SkillRequired;
+    uint32 itemLevel = Item::GetItemLevel(itemTemplate, bonusData, 1, 0, 0, 0, 0, false);
+    return Item::GetDisenchantLoot(itemTemplate, bonusData.Quality, itemLevel);
 }
 
 // terminate the roll
@@ -678,14 +596,14 @@ void LootRoll::Finish(RollVoteMap::const_iterator winnerItr)
 
             if (winnerItr->second.Vote == RollVote::Disenchant)
             {
+                ItemDisenchantLootEntry const* disenchant = ASSERT_NOTNULL(GetItemDisenchantLoot());
                 Loot loot(m_map, m_loot->GetOwnerGUID(), LOOT_DISENCHANTING, nullptr);
-                loot.FillLoot(*GetItemDisenchantLootId(), LootTemplates_Disenchant, player, true, false, LOOT_MODE_DEFAULT, ItemContext::NONE);
+                loot.FillLoot(disenchant->ID, LootTemplates_Disenchant, player, true, false, LOOT_MODE_DEFAULT, ItemContext::NONE);
                 if (!loot.AutoStore(player, NULL_BAG, NULL_SLOT, true))
                 {
                     for (uint32 i = 0; i < loot.items.size(); ++i)
                         if (LootItem* disenchantLoot = loot.LootItemInSlot(i, player))
-                            if (disenchantLoot->type == LootItemType::Item)
-                                player->SendItemRetrievalMail(disenchantLoot->itemid, disenchantLoot->count, disenchantLoot->context);
+                            player->SendItemRetrievalMail(disenchantLoot->itemid, disenchantLoot->count, disenchantLoot->context);
                 }
                 else
                     m_loot->NotifyItemRemoved(m_lootItem->LootListId, m_map);
@@ -872,7 +790,7 @@ bool Loot::FillLoot(uint32 lootId, LootStore const& store, Player* lootOwner, bo
 
         for (LootItem& item : items)
         {
-            if (!item.follow_loot_rules || item.freeforall || item.type != LootItemType::Item)
+            if (!item.follow_loot_rules || item.freeforall)
                 continue;
 
             if (ItemTemplate const* proto = sObjectMgr->GetItemTemplate(item.itemid))
@@ -907,40 +825,22 @@ bool Loot::FillLoot(uint32 lootId, LootStore const& store, Player* lootOwner, bo
 // Inserts the item into the loot (called by LootTemplate processors)
 void Loot::AddItem(LootStoreItem const& item)
 {
-    switch (item.type)
+    ItemTemplate const* proto = sObjectMgr->GetItemTemplate(item.itemid);
+    if (!proto)
+        return;
+
+    uint32 count = urand(item.mincount, item.maxcount);
+    uint32 stacks = count / proto->GetMaxStackSize() + ((count % proto->GetMaxStackSize()) ? 1 : 0);
+
+    for (uint32 i = 0; i < stacks && items.size() < MAX_NR_LOOT_ITEMS; ++i)
     {
-        case LootStoreItem::Type::Item:
-        {
-            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(item.itemid);
-            if (!proto)
-                return;
+        LootItem generatedLoot(item);
+        generatedLoot.context = _itemContext;
+        generatedLoot.count = std::min(count, proto->GetMaxStackSize());
+        generatedLoot.LootListId = items.size();
 
-            uint32 count = urand(item.mincount, item.maxcount);
-            uint32 stacks = count / proto->GetMaxStackSize() + ((count % proto->GetMaxStackSize()) ? 1 : 0);
-
-            for (uint32 i = 0; i < stacks && items.size() < MAX_NR_LOOT_ITEMS; ++i)
-            {
-                LootItem generatedLoot(item);
-                generatedLoot.context = _itemContext;
-                generatedLoot.count = std::min(count, proto->GetMaxStackSize());
-                generatedLoot.LootListId = items.size();
-                generatedLoot.BonusListIDs = ItemBonusMgr::GetBonusListsForItem(generatedLoot.itemid, _itemContext);
-
-                items.push_back(generatedLoot);
-                count -= proto->GetMaxStackSize();
-            }
-            break;
-        }
-        case LootStoreItem::Type::Currency:
-        {
-            LootItem generatedLoot(item);
-            generatedLoot.count = urand(item.mincount, item.maxcount);
-            generatedLoot.LootListId = items.size();
-            items.push_back(generatedLoot);
-            break;
-        }
-        default:
-            break;
+        items.push_back(generatedLoot);
+        count -= proto->GetMaxStackSize();
     }
 }
 
@@ -965,36 +865,17 @@ bool Loot::AutoStore(Player* player, uint8 bag, uint8 slot, bool broadcast, bool
         if (!lootItem->rollWinnerGUID.IsEmpty() && lootItem->rollWinnerGUID != GetGUID())
             continue;
 
-        switch (lootItem->type)
+        ItemPosCountVec dest;
+        InventoryResult msg = player->CanStoreNewItem(bag, slot, dest, lootItem->itemid, lootItem->count);
+        if (msg != EQUIP_ERR_OK && slot != NULL_SLOT)
+            msg = player->CanStoreNewItem(bag, NULL_SLOT, dest, lootItem->itemid, lootItem->count);
+        if (msg != EQUIP_ERR_OK && bag != NULL_BAG)
+            msg = player->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, lootItem->itemid, lootItem->count);
+        if (msg != EQUIP_ERR_OK)
         {
-            case LootItemType::Item:
-            {
-                ItemPosCountVec dest;
-                InventoryResult msg = player->CanStoreNewItem(bag, slot, dest, lootItem->itemid, lootItem->count);
-                if (msg != EQUIP_ERR_OK && slot != NULL_SLOT)
-                    msg = player->CanStoreNewItem(bag, NULL_SLOT, dest, lootItem->itemid, lootItem->count);
-                if (msg != EQUIP_ERR_OK && bag != NULL_BAG)
-                    msg = player->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, lootItem->itemid, lootItem->count);
-                if (msg != EQUIP_ERR_OK)
-                {
-                    player->SendEquipError(msg, nullptr, nullptr, lootItem->itemid);
-                    allLooted = false;
-                    continue;
-                }
-
-                if (Item* pItem = player->StoreNewItem(dest, lootItem->itemid, true, lootItem->randomBonusListId, GuidSet(), lootItem->context, &lootItem->BonusListIDs))
-                {
-                    player->SendNewItem(pItem, lootItem->count, false, createdByPlayer, broadcast, GetDungeonEncounterId());
-                    player->ApplyItemLootedSpell(pItem, true);
-                }
-                else
-                    player->ApplyItemLootedSpell(sObjectMgr->GetItemTemplate(lootItem->itemid));
-
-                break;
-            }
-            case LootItemType::Currency:
-                player->ModifyCurrency(lootItem->itemid, lootItem->count, CurrencyGainSource::Loot);
-                break;
+            player->SendEquipError(msg, nullptr, nullptr, lootItem->itemid);
+            allLooted = false;
+            continue;
         }
 
         if (ffaitem)
@@ -1004,6 +885,14 @@ bool Loot::AutoStore(Player* player, uint8 bag, uint8 slot, bool broadcast, bool
             lootItem->is_looted = true;
 
         --unlootedCount;
+
+        if (Item* pItem = player->StoreNewItem(dest, lootItem->itemid, true, lootItem->randomProperties, GuidSet(), lootItem->context))
+        {
+            player->SendNewItem(pItem, lootItem->count, false, createdByPlayer, broadcast, GetDungeonEncounterId());
+            player->ApplyItemLootedSpell(pItem, true);
+        }
+        else
+            player->ApplyItemLootedSpell(sObjectMgr->GetItemTemplate(lootItem->itemid));
     }
 
     return allLooted;
@@ -1075,12 +964,18 @@ bool Loot::hasItemFor(Player const* player) const
 {
     // quest items
     for (LootItem const& lootItem : items)
-        if (!lootItem.is_looted && !lootItem.follow_loot_rules && lootItem.GetAllowedLooters().contains(player->GetGUID()))
+        if (!lootItem.is_looted && !lootItem.follow_loot_rules && lootItem.GetAllowedLooters().find(player->GetGUID()) != lootItem.GetAllowedLooters().end())
             return true;
 
-    if (NotNormalLootItemList const* ffaItems = Trinity::Containers::MapGetValuePtr(GetPlayerFFAItems(), player->GetGUID()))
-        if (std::ranges::any_of(*ffaItems, std::identity(), &NotNormalLootItem::is_looted))
+    if (std::unique_ptr<NotNormalLootItemList> const* ffaItems = Trinity::Containers::MapGetValuePtr(GetPlayerFFAItems(), player->GetGUID()))
+    {
+        bool hasFfaItem = std::any_of(ffaItems->get()->begin(), ffaItems->get()->end(), [&](NotNormalLootItem const& ffaItem)
+        {
+            return !ffaItem.is_looted;
+        });
+        if (hasFfaItem)
             return true;
+    }
 
     return false;
 }
@@ -1107,33 +1002,11 @@ void Loot::BuildLootResponse(WorldPackets::Loot::LootResponse& packet, Player co
         if (!uiType)
             continue;
 
-        switch (item.type)
-        {
-            case LootItemType::Item:
-            {
-                WorldPackets::Loot::LootItemData& lootItem = packet.Items.emplace_back();
-                lootItem.LootListID = item.LootListId;
-                lootItem.UIType = *uiType;
-                lootItem.Quantity = item.count;
-                lootItem.Loot.Initialize(item);
-                break;
-            }
-            case LootItemType::Currency:
-            {
-                WorldPackets::Loot::LootCurrency& lootCurrency = packet.Currencies.emplace_back();
-                lootCurrency.CurrencyID = item.itemid;
-                lootCurrency.Quantity = item.count;
-                lootCurrency.LootListID = item.LootListId;
-                lootCurrency.UIType = *uiType;
-
-                // fake visible quantity for SPELL_AURA_MOD_CURRENCY_CATEGORY_GAIN_PCT - handled in Player::ModifyCurrency
-                lootCurrency.Quantity = float(lootCurrency.Quantity) * viewer->GetTotalAuraMultiplierByMiscValue(SPELL_AURA_MOD_CURRENCY_CATEGORY_GAIN_PCT, sCurrencyTypesStore.AssertEntry(item.itemid)->CategoryID);
-                break;
-            }
-            default:
-                break;
-        }
-
+        WorldPackets::Loot::LootItemData& lootItem = packet.Items.emplace_back();
+        lootItem.LootListID = item.LootListId;
+        lootItem.UIType = *uiType;
+        lootItem.Quantity = item.count;
+        lootItem.Loot.Initialize(item);
     }
 }
 

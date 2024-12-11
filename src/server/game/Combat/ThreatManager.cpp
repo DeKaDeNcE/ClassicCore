@@ -189,7 +189,7 @@ void ThreatReference::HeapNotifyDecreased()
     return true;
 }
 
-ThreatManager::ThreatManager(Unit* owner) : _owner(owner), _ownerCanHaveThreatList(false), _needClientUpdate(false), _needThreatClearUpdate(false), _updateTimer(THREAT_UPDATE_INTERVAL),
+ThreatManager::ThreatManager(Unit* owner) : _owner(owner), _ownerCanHaveThreatList(false), _needClientUpdate(false), _updateTimer(THREAT_UPDATE_INTERVAL),
     _sortedThreatList(std::make_unique<Heap>()), _currentVictimRef(nullptr), _fixateRef(nullptr)
 {
     for (int8 i = 0; i < MAX_SPELL_SCHOOL; ++i)
@@ -210,29 +210,15 @@ void ThreatManager::Initialize()
 
 void ThreatManager::Update(uint32 tdiff)
 {
-    if (!CanHaveThreatList())
+    if (!CanHaveThreatList() || IsThreatListEmpty(true))
         return;
-
     if (_updateTimer <= tdiff)
     {
-        if (_needThreatClearUpdate)
-        {
-            SendClearAllThreatToClients();
-            _needThreatClearUpdate = false;
-        }
-
-        if (!IsThreatListEmpty(true))
-            UpdateVictim();
-
+        UpdateVictim();
         _updateTimer = THREAT_UPDATE_INTERVAL;
     }
     else
         _updateTimer -= tdiff;
-}
-
-void ThreatManager::ResetUpdateTimer()
-{
-    _updateTimer = THREAT_UPDATE_INTERVAL;
 }
 
 Unit* ThreatManager::GetCurrentVictim()
@@ -553,7 +539,7 @@ void ThreatManager::ClearAllThreat()
 {
     if (!_myThreatListEntries.empty())
     {
-        _needThreatClearUpdate = true;
+        SendClearAllThreatToClients();
         do
             _myThreatListEntries.begin()->second->UnregisterAndFree();
         while (!_myThreatListEntries.empty());
@@ -757,16 +743,13 @@ void ThreatManager::ForwardThreatForAssistingMe(Unit* assistant, float baseAmoun
         threatened->GetThreatManager().AddThreat(assistant, 0.0f, spell, true);
 }
 
-void ThreatManager::RemoveMeFromThreatLists(bool (*unitFilter)(Unit const* otherUnit))
+void ThreatManager::RemoveMeFromThreatLists()
 {
-    std::vector<ThreatReference*> threatReferencesToRemove;
-    threatReferencesToRemove.reserve(_threatenedByMe.size());
-    for (auto const& [guid, ref] : _threatenedByMe)
-        if (!unitFilter || unitFilter(ref->GetOwner()))
-            threatReferencesToRemove.push_back(ref);
-
-    for (ThreatReference* ref : threatReferencesToRemove)
+    while (!_threatenedByMe.empty())
+    {
+        auto& ref = _threatenedByMe.begin()->second;
         ref->_mgr.ClearThreat(_owner);
+    }
 }
 
 void ThreatManager::UpdateMyTempModifiers()
@@ -827,9 +810,6 @@ void ThreatManager::UnregisterRedirectThreat(uint32 spellId, ObjectGuid const& v
 
 void ThreatManager::SendClearAllThreatToClients() const
 {
-    if (Creature const* owner = _owner->ToCreature(); owner && owner->IsThreatFeedbackDisabled())
-        return;
-
     WorldPackets::Combat::ThreatClear threatClear;
     threatClear.UnitGUID = _owner->GetGUID();
     _owner->SendMessageToSet(threatClear.Write(), false);
@@ -837,9 +817,6 @@ void ThreatManager::SendClearAllThreatToClients() const
 
 void ThreatManager::SendRemoveToClients(Unit const* victim) const
 {
-    if (Creature const* owner = _owner->ToCreature(); owner && owner->IsThreatFeedbackDisabled())
-        return;
-
     WorldPackets::Combat::ThreatRemove threatRemove;
     threatRemove.UnitGUID = _owner->GetGUID();
     threatRemove.AboutGUID = victim->GetGUID();
@@ -848,9 +825,6 @@ void ThreatManager::SendRemoveToClients(Unit const* victim) const
 
 void ThreatManager::SendThreatListToClients(bool newHighest) const
 {
-    if (Creature const* owner = _owner->ToCreature(); owner && owner->IsThreatFeedbackDisabled())
-        return;
-
     auto fillSharedPacketDataAndSend = [&](auto& packet)
     {
         packet.UnitGUID = _owner->GetGUID();

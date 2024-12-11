@@ -18,8 +18,8 @@
 #ifndef TRINITY_BAG_H
 #define TRINITY_BAG_H
 
-// Maximum 98 Slots ((CONTAINER_END - CONTAINER_FIELD_SLOT_1)/2
-#define MAX_BAG_SIZE 98                                     // 11.0.0
+// Maximum 36 Slots ((CONTAINER_END - CONTAINER_FIELD_SLOT_1)/2
+#define MAX_BAG_SIZE 36                                     // 2.0.12
 
 #include "Item.h"
 
@@ -54,8 +54,8 @@ class TC_GAME_API Bag : public Item
 
     protected:
         void BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) const override;
-        void BuildValuesCreate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const override;
-        void BuildValuesUpdate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const override;
+        void BuildValuesCreate(ByteBuffer* data, Player const* target) const override;
+        void BuildValuesUpdate(ByteBuffer* data, Player const* target) const override;
         void ClearUpdateMask(bool remove) override;
 
     public:

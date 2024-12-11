@@ -785,8 +785,11 @@ void BattlegroundQueue::BattlegroundQueueUpdate(uint32 /*diff*/, BattlegroundBra
     }
 
     // loop over queues for every map
-    for (int32 mapId : bg_template->MapIDs)
+    for (int16 mapId : bg_template->BattlemasterEntry->MapID)
     {
+        if (mapId == -1)
+            break;
+
         BGFreeSlotQueueContainer& bgQueues = sBattlegroundMgr->GetBGFreeSlotQueueStore(mapId);
         for (BGFreeSlotQueueContainer::iterator itr = bgQueues.begin(); itr != bgQueues.end();)
         {

@@ -25,7 +25,6 @@
 #include "ObjectMgr.h"
 #include "Player.h"
 #include "StringConvert.h"
-#include "Util.h"
 #include <sstream>
 #include <unordered_map>
 
@@ -36,7 +35,7 @@ namespace
 
 StoredLootItem::StoredLootItem(LootItem const& lootItem) : ItemId(lootItem.itemid), Count(lootItem.count), ItemIndex(lootItem.LootListId), FollowRules(lootItem.follow_loot_rules),
 FFA(lootItem.freeforall), Blocked(lootItem.is_blocked), Counted(lootItem.is_counted), UnderThreshold(lootItem.is_underthreshold),
-NeedsQuest(lootItem.needs_quest), RandomBonusListId(lootItem.randomBonusListId), Context(lootItem.context), BonusListIDs(lootItem.BonusListIDs)
+NeedsQuest(lootItem.needs_quest), RandomProperties(lootItem.randomProperties), Context(lootItem.context)
 {
 }
 
@@ -71,21 +70,18 @@ void LootItemStorage::LoadStorageFromDB()
             StoredLootContainer& storedContainer = _lootItemStore.try_emplace(key, key).first->second;
 
             LootItem lootItem;
-            lootItem.type = static_cast<LootItemType>(fields[1].GetInt8());
-            lootItem.itemid = fields[2].GetUInt32();
-            lootItem.count = fields[3].GetUInt32();
-            lootItem.LootListId = fields[4].GetUInt32();
-            lootItem.follow_loot_rules = fields[5].GetBool();
-            lootItem.freeforall = fields[6].GetBool();
-            lootItem.is_blocked = fields[7].GetBool();
-            lootItem.is_counted = fields[8].GetBool();
-            lootItem.is_underthreshold = fields[9].GetBool();
-            lootItem.needs_quest = fields[10].GetBool();
-            lootItem.randomBonusListId = fields[11].GetUInt32();
+            lootItem.itemid = fields[1].GetUInt32();
+            lootItem.count = fields[2].GetUInt32();
+            lootItem.LootListId = fields[3].GetUInt32();
+            lootItem.follow_loot_rules = fields[4].GetBool();
+            lootItem.freeforall = fields[5].GetBool();
+            lootItem.is_blocked = fields[6].GetBool();
+            lootItem.is_counted = fields[7].GetBool();
+            lootItem.is_underthreshold = fields[8].GetBool();
+            lootItem.needs_quest = fields[9].GetBool();
+            lootItem.randomProperties.RandomPropertiesID = fields[10].GetInt32();
+            lootItem.randomProperties.RandomPropertiesSeed = fields[11].GetInt32();
             lootItem.context = ItemContext(fields[12].GetUInt8());
-            for (std::string_view bonusList : Trinity::Tokenize(fields[13].GetStringView(), ' ', false))
-                if (Optional<int32> bonusListID = Trinity::StringTo<int32>(bonusList))
-                    lootItem.BonusListIDs.push_back(*bonusListID);
 
             storedContainer.AddLootItem(lootItem, trans);
 
@@ -152,9 +148,8 @@ bool LootItemStorage::LoadStoredLoot(Item* item, Player* player)
             li.is_counted = storedItemPair.second.Counted;
             li.is_underthreshold = storedItemPair.second.UnderThreshold;
             li.needs_quest = storedItemPair.second.NeedsQuest;
-            li.randomBonusListId = storedItemPair.second.RandomBonusListId;
+            li.randomProperties = storedItemPair.second.RandomProperties;
             li.context = storedItemPair.second.Context;
-            li.BonusListIDs = storedItemPair.second.BonusListIDs;
 
             // Copy the extra loot conditions from the item in the loot template
             lt->CopyConditions(&li);
@@ -228,7 +223,7 @@ void LootItemStorage::RemoveStoredLootForContainer(uint64 containerId)
     CharacterDatabase.CommitTransaction(trans);
 }
 
-void LootItemStorage::RemoveStoredLootItemForContainer(uint64 containerId, LootItemType type, uint32 itemId, uint32 count, uint32 itemIndex)
+void LootItemStorage::RemoveStoredLootItemForContainer(uint64 containerId, uint32 itemId, uint32 count, uint32 itemIndex)
 {
     // write
     std::unique_lock<std::shared_mutex> lock(*GetLock());
@@ -237,7 +232,7 @@ void LootItemStorage::RemoveStoredLootItemForContainer(uint64 containerId, LootI
     if (itr == _lootItemStore.end())
         return;
 
-    itr->second.RemoveItem(type, itemId, count, itemIndex);
+    itr->second.RemoveItem(itemId, count, itemIndex);
 }
 
 void LootItemStorage::AddNewStoredLoot(uint64 containerId, Loot* loot, Player* player)
@@ -303,24 +298,20 @@ void StoredLootContainer::AddLootItem(LootItem const& lootItem, CharacterDatabas
 
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_ITEMCONTAINER_ITEMS);
 
-    // container_id, item_type, item_id, item_count, item_index, follow_rules, ffa, blocked, counted, under_threshold, needs_quest, rnd_prop, rnd_suffix
+    // container_id, item_id, item_count, item_index, follow_rules, ffa, blocked, counted, under_threshold, needs_quest, random_properties_id, random_properties_seed, context
     stmt->setUInt64(0, _containerId);
-    stmt->setInt8(1, AsUnderlyingType(lootItem.type));
-    stmt->setUInt32(2, lootItem.itemid);
-    stmt->setUInt32(3, lootItem.count);
-    stmt->setUInt32(4, lootItem.LootListId);
-    stmt->setBool(5, lootItem.follow_loot_rules);
-    stmt->setBool(6, lootItem.freeforall);
-    stmt->setBool(7, lootItem.is_blocked);
-    stmt->setBool(8, lootItem.is_counted);
-    stmt->setBool(9, lootItem.is_underthreshold);
-    stmt->setBool(10, lootItem.needs_quest);
-    stmt->setInt32(11, lootItem.randomBonusListId);
-    stmt->setUInt8(13, AsUnderlyingType(lootItem.context));
-    std::ostringstream bonusListIDs;
-    for (int32 bonusListID : lootItem.BonusListIDs)
-        bonusListIDs << bonusListID << ' ';
-    stmt->setString(13, bonusListIDs.str());
+    stmt->setUInt32(1, lootItem.itemid);
+    stmt->setUInt32(2, lootItem.count);
+    stmt->setUInt32(3, lootItem.LootListId);
+    stmt->setBool(4, lootItem.follow_loot_rules);
+    stmt->setBool(5, lootItem.freeforall);
+    stmt->setBool(6, lootItem.is_blocked);
+    stmt->setBool(7, lootItem.is_counted);
+    stmt->setBool(8, lootItem.is_underthreshold);
+    stmt->setBool(9, lootItem.needs_quest);
+    stmt->setInt32(9, lootItem.randomProperties.RandomPropertiesID);
+    stmt->setInt32(10, lootItem.randomProperties.RandomPropertiesSeed);
+    stmt->setUInt8(11, AsUnderlyingType(lootItem.context));
     trans->Append(stmt);
 }
 
@@ -349,7 +340,7 @@ void StoredLootContainer::RemoveMoney()
     CharacterDatabase.Execute(stmt);
 }
 
-void StoredLootContainer::RemoveItem(LootItemType type, uint32 itemId, uint32 count, uint32 itemIndex)
+void StoredLootContainer::RemoveItem(uint32 itemId, uint32 count, uint32 itemIndex)
 {
     auto bounds = _lootItems.equal_range(itemId);
     for (auto itr = bounds.first; itr != bounds.second; ++itr)
@@ -364,9 +355,8 @@ void StoredLootContainer::RemoveItem(LootItemType type, uint32 itemId, uint32 co
     // Deletes a single item associated with an openable item from the DB
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_ITEMCONTAINER_ITEM);
     stmt->setUInt64(0, _containerId);
-    stmt->setInt8(1, AsUnderlyingType(type));
-    stmt->setUInt32(2, itemId);
-    stmt->setUInt32(3, count);
-    stmt->setUInt32(4, itemIndex);
+    stmt->setUInt32(1, itemId);
+    stmt->setUInt32(2, count);
+    stmt->setUInt32(3, itemIndex);
     CharacterDatabase.Execute(stmt);
 }

@@ -21,17 +21,14 @@
 #include "GridDefines.h"
 #include "IteratorPair.h"
 #include "MapUpdater.h"
-#include "Optional.h"
 #include "Position.h"
 #include "SharedDefines.h"
-#include "UniqueTrackablePtr.h"
 #include <boost/dynamic_bitset_fwd.hpp>
 #include <map>
 #include <shared_mutex>
 
 class Battleground;
 class BattlegroundMap;
-class GarrisonMap;
 class Group;
 class InstanceLock;
 class InstanceMap;
@@ -52,7 +49,7 @@ class TC_GAME_API MapManager
 
         static MapManager* instance();
 
-        Map* CreateMap(uint32 mapId, Player* player, Optional<uint32> lfgDungeonsId = {});
+        Map* CreateMap(uint32 mapId, Player* player);
         Map* FindMap(uint32 mapId, uint32 instanceId) const;
         uint32 FindInstanceIdForPlayer(uint32 mapId, Player const* player) const;
 
@@ -134,16 +131,14 @@ class TC_GAME_API MapManager
 
     private:
         using MapKey = std::pair<uint32, uint32>;
-        typedef std::map<MapKey, Trinity::unique_trackable_ptr<Map>> MapMapType;
+        typedef std::map<MapKey, Map*> MapMapType;
         typedef boost::dynamic_bitset<size_t> InstanceIds;
 
         Map* FindMap_i(uint32 mapId, uint32 instanceId) const;
 
         Map* CreateWorldMap(uint32 mapId, uint32 instanceId);
-        InstanceMap* CreateInstance(uint32 mapId, uint32 instanceId, InstanceLock* instanceLock, Difficulty difficulty, TeamId team, Group* group,
-            Optional<uint32> lfgDungeonsId);
+        InstanceMap* CreateInstance(uint32 mapId, uint32 instanceId, InstanceLock* instanceLock, Difficulty difficulty, TeamId team, Group* group);
         BattlegroundMap* CreateBattleground(uint32 mapId, uint32 instanceId, Battleground* bg);
-        GarrisonMap* CreateGarrison(uint32 mapId, uint32 instanceId, Player* owner);
 
         bool DestroyMap(Map* map);
 
@@ -166,7 +161,7 @@ void MapManager::DoForAllMaps(Worker&& worker)
     std::shared_lock<std::shared_mutex> lock(_mapsLock);
 
     for (auto const& [key, map] : i_maps)
-        worker(map.get());
+        worker(map);
 }
 
 template<typename Worker>
@@ -180,7 +175,7 @@ void MapManager::DoForAllMapsWithMapId(uint32 mapId, Worker&& worker)
     );
 
     for (auto const& [key, map] : range)
-        worker(map.get());
+        worker(map);
 }
 
 #define sMapMgr MapManager::instance()

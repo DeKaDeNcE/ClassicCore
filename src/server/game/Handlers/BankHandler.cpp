@@ -15,15 +15,14 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "WorldSession.h"
 #include "BankPackets.h"
-#include "Creature.h"
+#include "Item.h"
 #include "DB2Stores.h"
 #include "GossipDef.h"
-#include "Item.h"
 #include "Log.h"
 #include "NPCPackets.h"
 #include "Player.h"
+#include "WorldSession.h"
 
 void WorldSession::HandleAutoBankItemOpcode(WorldPackets::Bank::AutoBankItem& packet)
 {
@@ -34,9 +33,6 @@ void WorldSession::HandleAutoBankItemOpcode(WorldPackets::Bank::AutoBankItem& pa
         TC_LOG_ERROR("network", "WORLD: HandleAutoBankItemOpcode - Unit ({}) not found or you can't interact with him.", _player->PlayerTalkClass->GetInteractionData().SourceGuid.ToString());
         return;
     }
-
-    if (packet.BankType != BankType::Character)
-        return;
 
     Item* item = _player->GetItemByPos(packet.Bag, packet.Slot);
     if (!item)
@@ -61,34 +57,13 @@ void WorldSession::HandleAutoBankItemOpcode(WorldPackets::Bank::AutoBankItem& pa
     _player->BankItem(dest, item, true);
 }
 
-void WorldSession::HandleBankerActivateOpcode(WorldPackets::Bank::BankerActivate const& bankerActivate)
+void WorldSession::HandleBankerActivateOpcode(WorldPackets::NPC::Hello& packet)
 {
-    if (bankerActivate.InteractionType != PlayerInteractionType::Banker && bankerActivate.InteractionType != PlayerInteractionType::CharacterBanker)
-        return;
-
-    Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(bankerActivate.Banker, UNIT_NPC_FLAG_ACCOUNT_BANKER | UNIT_NPC_FLAG_BANKER, UNIT_NPC_FLAG_2_NONE);
+    Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(packet.Unit, UNIT_NPC_FLAG_BANKER, UNIT_NPC_FLAG_2_NONE);
     if (!unit)
     {
-        TC_LOG_ERROR("network", "WORLD: HandleBankerActivateOpcode - {} not found or you can not interact with him.", bankerActivate.Banker);
+        TC_LOG_ERROR("network", "WORLD: HandleBankerActivateOpcode - {} not found or you can not interact with him.", packet.Unit.ToString());
         return;
-    }
-
-    switch (bankerActivate.InteractionType)
-    {
-        case PlayerInteractionType::Banker:
-            if (!unit->HasNpcFlag(UNIT_NPC_FLAG_ACCOUNT_BANKER) || !unit->HasNpcFlag(UNIT_NPC_FLAG_BANKER))
-                return;
-            break;
-        case PlayerInteractionType::CharacterBanker:
-            if (!unit->HasNpcFlag(UNIT_NPC_FLAG_BANKER))
-                return;
-            break;
-        case PlayerInteractionType::AccountBanker:
-            if (!unit->HasNpcFlag(UNIT_NPC_FLAG_ACCOUNT_BANKER))
-                return;
-            break;
-        default:
-            break;
     }
 
     // remove fake death
@@ -97,7 +72,7 @@ void WorldSession::HandleBankerActivateOpcode(WorldPackets::Bank::BankerActivate
 
     // set currentBankerGUID for other bank action
 
-    SendShowBank(bankerActivate.Banker, bankerActivate.InteractionType);
+    SendShowBank(packet.Unit);
 }
 
 void WorldSession::HandleAutoStoreBankItemOpcode(WorldPackets::Bank::AutoStoreBankItem& packet)
@@ -219,7 +194,7 @@ void WorldSession::HandleReagentBankDepositOpcode(WorldPackets::Bank::ReagentBan
     for (Item* item : _player->GetCraftingReagentItemsToDeposit())
     {
         ItemPosCountVec dest;
-        InventoryResult msg = _player->CanBankItem(NULL_BAG, NULL_SLOT, dest, item, false, true, true);
+        InventoryResult msg = _player->CanBankItem(NULL_BAG, NULL_SLOT, dest, item, false, true);
         if (msg != EQUIP_ERR_OK)
         {
             if (msg != EQUIP_ERR_REAGENT_BANK_FULL || !anyDeposited)
@@ -259,7 +234,7 @@ void WorldSession::HandleAutoBankReagentOpcode(WorldPackets::Bank::AutoBankReage
         return;
 
     ItemPosCountVec dest;
-    InventoryResult msg = _player->CanBankItem(NULL_BAG, NULL_SLOT, dest, item, false, true, true);
+    InventoryResult msg = _player->CanBankItem(NULL_BAG, NULL_SLOT, dest, item, false, true);
     if (msg != EQUIP_ERR_OK)
     {
         _player->SendEquipError(msg, item, nullptr);
@@ -294,41 +269,25 @@ void WorldSession::HandleAutoStoreBankReagentOpcode(WorldPackets::Bank::AutoStor
     if (!pItem)
         return;
 
-    if (_player->IsReagentBankPos(autoStoreBankReagent.Slot, autoStoreBankReagent.PackSlot))
+    ItemPosCountVec dest;
+    InventoryResult msg = _player->CanBankItem(NULL_BAG, NULL_SLOT, dest, pItem, false, true);
+    if (msg != EQUIP_ERR_OK)
     {
-        ItemPosCountVec dest;
-        InventoryResult msg = _player->CanStoreItem(NULL_BAG, NULL_SLOT, dest, pItem, false);
-        if (msg != EQUIP_ERR_OK)
-        {
-            _player->SendEquipError(msg, pItem, nullptr);
-            return;
-        }
-
-        _player->RemoveItem(autoStoreBankReagent.Slot, autoStoreBankReagent.PackSlot, true);
-        _player->StoreItem(dest, pItem, true);
+        _player->SendEquipError(msg, pItem, nullptr);
+        return;
     }
-    else
-    {
-        ItemPosCountVec dest;
-        InventoryResult msg = _player->CanBankItem(NULL_BAG, NULL_SLOT, dest, pItem, false, true, true);
-        if (msg != EQUIP_ERR_OK)
-        {
-            _player->SendEquipError(msg, pItem, nullptr);
-            return;
-        }
 
-        _player->RemoveItem(autoStoreBankReagent.Slot, autoStoreBankReagent.PackSlot, true);
-        _player->BankItem(dest, pItem, true);
-    }
+    _player->RemoveItem(autoStoreBankReagent.Slot, autoStoreBankReagent.PackSlot, true);
+    _player->BankItem(dest, pItem, true);
 }
 
-void WorldSession::SendShowBank(ObjectGuid guid, PlayerInteractionType interactionType)
+void WorldSession::SendShowBank(ObjectGuid guid)
 {
     _player->PlayerTalkClass->GetInteractionData().Reset();
     _player->PlayerTalkClass->GetInteractionData().SourceGuid = guid;
     WorldPackets::NPC::NPCInteractionOpenResult npcInteraction;
     npcInteraction.Npc = guid;
-    npcInteraction.InteractionType = interactionType;
+    npcInteraction.InteractionType = PlayerInteractionType::Banker;
     npcInteraction.Success = true;
     SendPacket(npcInteraction.Write());
 }

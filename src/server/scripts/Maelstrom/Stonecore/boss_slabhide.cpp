@@ -98,11 +98,12 @@ enum MovementPoints
     POINT_SLABHIDE_LAND,
 };
 
-constexpr Position SlabhideIntroPos = { 1292.27f, 1226.16f, 265.573f };
-constexpr Position SlabhideIntroLandPos = { 1292.352f, 1226.478f, 247.6368f, 3.630285f };
+Position const SlabhideIntroPos = { 1292.27f, 1226.16f, 265.573f };
+Position const SlabhideIntroLandPos = { 1292.352f, 1226.478f, 247.6368f, 3.630285f };
 
-constexpr Position SlabhideMiddlePos = { 1280.73f, 1212.31f, 247.3837f };
-constexpr Position SlabhideInAirPos = { 1280.73f, 1212.31f, 257.3837f };
+Position const SlabhideMiddlePos = { 1280.73f, 1212.31f, 247.3837f };
+Position const SlabhideInAirPos = { 1280.73f, 1212.31f, 257.3837f };
+Position const SlabhideLandPos = { 1282.7f, 1229.77f, 247.155f, 3.82227f };
 
 class boss_slabhide : public CreatureScript
 {

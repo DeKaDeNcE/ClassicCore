@@ -106,13 +106,6 @@ namespace WorldPackets
                 uint32 Unknown1007 = 0;
             };
 
-            struct AddonChatThrottleParams
-            {
-                int32 MaxTries = 0;
-                int32 TriesRestoredPerSecond = 0;
-                int32 UsedTriesPerMessage = 0;
-            };
-
             FeatureSystemStatus() : ServerPacket(SMSG_FEATURE_SYSTEM_STATUS, 200) { }
 
             WorldPacket const* Write() override;
@@ -158,14 +151,12 @@ namespace WorldPackets
             bool QuestSessionEnabled                 = false;
             bool IsMuted                             = false;
             bool ClubFinderEnabled                   = false;
-            bool CommunityFinderEnabled              = false;
             bool Unknown901CheckoutRelated           = false;
             bool TextToSpeechFeatureEnabled          = false;
             bool ChatDisabledByDefault               = false;
             bool ChatDisabledByPlayer                = false;
             bool LFGListCustomRequiresAuthenticator  = false;
             bool AddonsDisabled                      = false;
-            bool TimerunningEnabled                  = false;
             bool WarGamesEnabled                     = false; // classic only
             bool ContentTrackingEnabled              = false;
             bool IsSellAllJunkEnabled                = false;
@@ -173,21 +164,11 @@ namespace WorldPackets
             bool IsLFDEnabled                        = true;  // classic only
             bool IsLFREnabled                        = true;  // classic only
             bool IsPremadeGroupEnabled               = true;  // classic only
-            bool CanShowSetRoleButton                = true;
-            bool GuildEventsEditsEnabled             = true;
-            bool GuildTradeSkillsEnabled             = true;
-            bool BNSendWhisperUseV2Services          = true; ///< BNSendWhisper will send to v2.WhisperService instead of v1.NotificationService
-            bool BNSendGameDataUseV2Services         = true; ///< BNSendGameData will send to v2.NotificationService instead of v1.NotificationService
-            bool IsAccountCurrencyTransferEnabled    = false;
 
             SocialQueueConfig QuickJoinConfig;
             SquelchInfo Squelch;
             RafSystemFeatureInfo RAFSystem;
             std::vector<GameRuleValuePair> GameRuleValues;
-            int32 ActiveTimerunningSeasonID          = 0;
-            int32 RemainingTimerunningSeasonSeconds  = 0;
-            std::string Unknown1027;                          // related to movement lua functions used by keybinds
-            AddonChatThrottleParams AddonChatThrottle;
         };
 
         struct DebugTimeEventInfo
@@ -213,24 +194,17 @@ namespace WorldPackets
             bool IsExpansionPreorderInStore          = false; // NYI
             bool KioskModeEnabled                    = false; // NYI
             bool CompetitiveModeEnabled              = false; // NYI
-            bool IsBoostEnabled                      = false; // classic only
             bool TrialBoostEnabled                   = false; // NYI
             bool TokenBalanceEnabled                 = false; // NYI
-            bool PaidCharacterTransfersBetweenBnetAccountsEnabled = false;
             bool LiveRegionCharacterListEnabled      = false; // NYI
             bool LiveRegionCharacterCopyEnabled      = false; // NYI
             bool LiveRegionAccountCopyEnabled        = false; // NYI
             bool LiveRegionKeyBindingsCopyEnabled    = false;
             bool Unknown901CheckoutRelated           = false; // NYI
-            bool IsNameReservationEnabled            = false; // classic only
-            bool TimerunningEnabled                  = false; // NYI
             bool AddonsDisabled                      = false;
             bool Unused1000                          = false;
             bool AccountSaveDataExportEnabled        = false;
             bool AccountLockedByExport               = false;
-            bool BNSendWhisperUseV2Services          = true; ///< BNSendWhisper will send to v2.WhisperService instead of v1.NotificationService
-            bool BNSendGameDataUseV2Services         = true; ///< BNSendGameData will send to v2.NotificationService instead of v1.NotificationService
-            bool CharacterSelectListModeRealmless    = false;
             Optional<EuropaTicketConfig> EuropaTicketSystemStatus;
             std::vector<int32> LiveRegionCharacterCopySourceRegions;
             uint32 TokenPollTimeSeconds              = 0;     // NYI
@@ -244,16 +218,13 @@ namespace WorldPackets
             uint32 KioskSessionMinutes               = 0;
             int32 ActiveSeason                       = 0;     // Currently active Classic season
             std::vector<GameRuleValuePair> GameRuleValues;
-            int32 ActiveTimerunningSeasonID          = 0;
-            int32 RemainingTimerunningSeasonSeconds  = 0;
             int16 MaxPlayerNameQueriesPerPacket      = 50;
             int16 PlayerNameQueryTelemetryInterval   = 600;
             Duration<Seconds, uint32> PlayerNameQueryInterval = 10s;
             Optional<int32> LaunchETA;
             std::vector<DebugTimeEventInfo> DebugTimeEvents;
             int32 Unused1007                         = 0;
-            uint32 EventRealmQueues                  = 0;
-            std::string RealmHiddenAlert;
+            Optional<std::string> RealmHiddenAlert;
         };
 
         class SetTimeZoneInformation final : public ServerPacket

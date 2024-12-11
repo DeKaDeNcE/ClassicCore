@@ -130,7 +130,6 @@ namespace WorldPackets
             Optional<MonsterSplineSpellEffectExtraData> SpellEffectExtraData;
             Optional<MonsterSplineJumpExtraData> JumpExtraData;
             Optional<MonsterSplineAnimTierTransition> AnimTierTransition;
-            Optional<MonsterSplineUnknown901> Unknown901;
             float FaceDirection         = 0.0f;
             ObjectGuid FaceGUID;
             TaggedPosition<Position::XYZ> FaceSpot;
@@ -139,6 +138,7 @@ namespace WorldPackets
         struct MovementMonsterSpline
         {
             uint32 ID = 0;
+            TaggedPosition<Position::XYZ> Destination;
             bool CrzTeleport = false;
             uint8 StopDistanceTolerance = 0;    // Determines how far from spline destination the mover is allowed to stop in place 0, 0, 3.0, 2.76, numeric_limits<float>::max, 1.1, float(INT_MAX); default before this field existed was distance 3.0 (index 2)
             MovementSpline Move;
@@ -212,31 +212,6 @@ namespace WorldPackets
             float Speed = 1.0f;
         };
 
-        class SetAdvFlyingSpeed final : public ServerPacket
-        {
-        public:
-            explicit SetAdvFlyingSpeed(OpcodeServer opcode) : ServerPacket(opcode, 16 + 4 + 4) { }
-
-            WorldPacket const* Write() override;
-
-            ObjectGuid MoverGUID;
-            uint32 SequenceIndex = 0;
-            float Speed = 1.0f;
-        };
-
-        class SetAdvFlyingSpeedRange final : public ServerPacket
-        {
-        public:
-            explicit SetAdvFlyingSpeedRange(OpcodeServer opcode) : ServerPacket(opcode, 16 + 4 + 4 + 4) { }
-
-            WorldPacket const* Write() override;
-
-            ObjectGuid MoverGUID;
-            uint32 SequenceIndex = 0;
-            float SpeedMin = 1.0f;
-            float SpeedMax = 1.0f;
-        };
-
         class MoveSplineSetFlag final : public ServerPacket
         {
         public:
@@ -308,7 +283,6 @@ namespace WorldPackets
             uint32 Reason = 0;
             TeleportLocation Loc;
             TaggedPosition<Position::XYZ> MovementOffset;    // Adjusts all pending movement events by this offset
-            int32 Counter = 0;
         };
 
         class WorldPortResponse final : public ClientPacket
@@ -461,18 +435,6 @@ namespace WorldPackets
 
             MovementAck Ack;
             float Speed = 0.0f;
-        };
-
-        class MovementSpeedRangeAck final : public ClientPacket
-        {
-        public:
-            MovementSpeedRangeAck(WorldPacket&& packet) : ClientPacket(std::move(packet)) { }
-
-            void Read() override;
-
-            MovementAck Ack;
-            float SpeedMin = 1.0f;
-            float SpeedMax = 1.0f;
         };
 
         class SetActiveMover final : public ClientPacket

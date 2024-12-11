@@ -18,9 +18,10 @@
 #ifndef HotfixPackets_h__
 #define HotfixPackets_h__
 
+#include "Packet.h"
 #include "Common.h"
 #include "DB2Stores.h"
-#include "Packet.h"
+#include "ObjectGuid.h"
 
 namespace WorldPackets
 {

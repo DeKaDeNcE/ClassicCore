@@ -31,12 +31,14 @@ class MessageBuffer;
 class TC_SHARED_API ByteBufferException : public std::exception
 {
 public:
-    explicit ByteBufferException() = default;
-    explicit ByteBufferException(std::string&& message) noexcept : msg_(std::move(message)) { }
+    ~ByteBufferException() noexcept = default;
 
     char const* what() const noexcept override { return msg_.c_str(); }
 
 protected:
+    std::string & message() noexcept { return msg_; }
+
+private:
     std::string msg_;
 };
 
@@ -44,12 +46,16 @@ class TC_SHARED_API ByteBufferPositionException : public ByteBufferException
 {
 public:
     ByteBufferPositionException(size_t pos, size_t size, size_t valueSize);
+
+    ~ByteBufferPositionException() noexcept = default;
 };
 
 class TC_SHARED_API ByteBufferInvalidValueException : public ByteBufferException
 {
 public:
-    ByteBufferInvalidValueException(char const* type, std::string_view value);
+    ByteBufferInvalidValueException(char const* type, char const* value);
+
+    ~ByteBufferInvalidValueException() noexcept = default;
 };
 
 class TC_SHARED_API ByteBuffer
@@ -509,9 +515,9 @@ class TC_SHARED_API ByteBuffer
                 append(str, len);
         }
 
-        std::string_view ReadCString(bool requireValidUtf8 = true);
+        std::string ReadCString(bool requireValidUtf8 = true);
 
-        std::string_view ReadString(uint32 length, bool requireValidUtf8 = true);
+        std::string ReadString(uint32 length, bool requireValidUtf8 = true);
 
         uint8* contents()
         {
@@ -633,13 +639,16 @@ class TC_SHARED_API ByteBuffer
 /// @todo Make a ByteBuffer.cpp and move all this inlining to it.
 template<> inline std::string ByteBuffer::read<std::string>()
 {
-    return std::string(ReadCString());
+    std::string tmp;
+    *this >> tmp;
+    return tmp;
 }
 
 template<>
 inline void ByteBuffer::read_skip<char*>()
 {
-    (void)ReadCString();
+    std::string temp;
+    *this >> temp;
 }
 
 template<>

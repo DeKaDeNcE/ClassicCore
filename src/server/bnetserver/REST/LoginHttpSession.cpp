@@ -23,20 +23,17 @@
 
 namespace Battlenet
 {
-template<template<typename> typename SocketImpl>
-LoginHttpSession<SocketImpl>::LoginHttpSession(boost::asio::ip::tcp::socket&& socket, LoginHttpSessionWrapper& owner)
-    : BaseSocket(std::move(socket), SslContext::instance()), _owner(owner)
+LoginHttpSession::LoginHttpSession(boost::asio::ip::tcp::socket&& socket)
+    : SslSocket(std::move(socket), SslContext::instance())
 {
 }
 
-template<template<typename> typename SocketImpl>
-LoginHttpSession<SocketImpl>::~LoginHttpSession() = default;
+LoginHttpSession::~LoginHttpSession() = default;
 
-template<template<typename> typename SocketImpl>
-void LoginHttpSession<SocketImpl>::Start()
+void LoginHttpSession::Start()
 {
-    std::string ip_address = this->GetRemoteIpAddress().to_string();
-    TC_LOG_TRACE("server.http.session", "{} Accepted connection", this->GetClientInfo());
+    std::string ip_address = GetRemoteIpAddress().to_string();
+    TC_LOG_TRACE("server.http.session", "{} Accepted connection", GetClientInfo());
 
     // Verify that this IP is not in the ip_banned table
     LoginDatabase.Execute(LoginDatabase.GetPreparedStatement(LOGIN_DEL_EXPIRED_IP_BANS));
@@ -44,12 +41,11 @@ void LoginHttpSession<SocketImpl>::Start()
     LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_SEL_IP_INFO);
     stmt->setString(0, ip_address);
 
-    this->_queryProcessor.AddCallback(LoginDatabase.AsyncQuery(stmt)
-        .WithPreparedCallback([sess = this->shared_from_this()](PreparedQueryResult result) { sess->CheckIpCallback(std::move(result)); }));
+    _queryProcessor.AddCallback(LoginDatabase.AsyncQuery(stmt)
+        .WithPreparedCallback([sess = shared_from_this()](PreparedQueryResult result) { sess->CheckIpCallback(std::move(result)); }));
 }
 
-template<template<typename> typename SocketImpl>
-void LoginHttpSession<SocketImpl>::CheckIpCallback(PreparedQueryResult result)
+void LoginHttpSession::CheckIpCallback(PreparedQueryResult result)
 {
     if (result)
     {
@@ -64,30 +60,21 @@ void LoginHttpSession<SocketImpl>::CheckIpCallback(PreparedQueryResult result)
 
         if (banned)
         {
-            TC_LOG_DEBUG("server.http.session", "{} tries to log in using banned IP!", this->GetClientInfo());
-            this->CloseSocket();
+            TC_LOG_DEBUG("server.http.session", "{} tries to log in using banned IP!", GetClientInfo());
+            CloseSocket();
             return;
         }
     }
 
-    if constexpr (std::is_same_v<BaseSocket, Trinity::Net::Http::SslSocket<LoginHttpSession<Trinity::Net::Http::SslSocket>>>)
-    {
-        this->AsyncHandshake();
-    }
-    else
-    {
-        this->ResetHttpParser();
-        this->AsyncRead();
-    }
+    AsyncHandshake();
 }
 
-template<template<typename> typename SocketImpl>
-Trinity::Net::Http::RequestHandlerResult LoginHttpSession<SocketImpl>::RequestHandler(Trinity::Net::Http::RequestContext& context)
+Trinity::Net::Http::RequestHandlerResult LoginHttpSession::RequestHandler(Trinity::Net::Http::RequestContext& context)
 {
-    return sLoginService.HandleRequest(_owner.shared_from_this(), context);
+    return sLoginService.HandleRequest(shared_from_this(), context);
 }
 
-std::shared_ptr<Trinity::Net::Http::SessionState> ObtainSessionState(Trinity::Net::Http::RequestContext& context, boost::asio::ip::address const& remoteAddress)
+std::shared_ptr<Trinity::Net::Http::SessionState> LoginHttpSession::ObtainSessionState(Trinity::Net::Http::RequestContext& context) const
 {
     using namespace std::string_literals;
 
@@ -105,38 +92,27 @@ std::shared_ptr<Trinity::Net::Http::SessionState> ObtainSessionState(Trinity::Ne
             if (eq != std::string_view::npos)
                 name = cookie.substr(0, eq);
 
-            return name == LoginHttpSessionWrapper::SESSION_ID_COOKIE;
+            return name == SESSION_ID_COOKIE;
         });
         if (sessionIdItr != cookies.end())
         {
             std::string_view value = sessionIdItr->substr(eq + 1);
-            state = sLoginService.FindAndRefreshSessionState(value, remoteAddress);
+            state = sLoginService.FindAndRefreshSessionState(value, GetRemoteIpAddress());
         }
     }
 
     if (!state)
     {
-        state = sLoginService.CreateNewSessionState(remoteAddress);
+        state = sLoginService.CreateNewSessionState(GetRemoteIpAddress());
 
         std::string_view host = Trinity::Net::Http::ToStdStringView(context.request[boost::beast::http::field::host]);
         if (std::size_t port = host.find(':'); port != std::string_view::npos)
             host.remove_suffix(host.length() - port);
 
         context.response.insert(boost::beast::http::field::set_cookie, Trinity::StringFormat("{}={}; Path=/bnetserver; Domain={}; Secure; HttpOnly; SameSite=None",
-            LoginHttpSessionWrapper::SESSION_ID_COOKIE, boost::uuids::to_string(state->Id), host));
+            SESSION_ID_COOKIE, boost::uuids::to_string(state->Id), host));
     }
 
     return state;
-}
-
-template class LoginHttpSession<Trinity::Net::Http::SslSocket>;
-template class LoginHttpSession<Trinity::Net::Http::Socket>;
-
-LoginHttpSessionWrapper::LoginHttpSessionWrapper(boost::asio::ip::tcp::socket&& socket)
-{
-    if (!SslContext::UsesDevWildcardCertificate())
-        _socket = std::make_shared<LoginHttpSession<Trinity::Net::Http::SslSocket>>(std::move(socket), *this);
-    else
-        _socket = std::make_shared<LoginHttpSession<Trinity::Net::Http::Socket>>(std::move(socket), *this);
 }
 }

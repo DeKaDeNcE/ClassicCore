@@ -246,10 +246,7 @@ void PlayerMenu::SendGossipMenu(uint32 titleTextId, ObjectGuid objectGUID)
     packet.GossipGUID = objectGUID;
     packet.GossipID = _gossipMenu.GetMenuId();
     if (GossipMenuAddon const* addon = sObjectMgr->GetGossipMenuAddon(packet.GossipID))
-    {
         packet.FriendshipFactionID = addon->FriendshipFactionID;
-        packet.LfgDungeonsID = addon->LfgDungeonsID;
-    }
 
     if (NpcText const* text = sObjectMgr->GetNpcText(titleTextId))
         packet.BroadcastTextID = Trinity::Containers::SelectRandomWeightedContainerElement(text->Data, [](NpcTextData const& data) { return data.Probability; })->BroadcastTextID;
@@ -282,15 +279,14 @@ void PlayerMenu::SendGossipMenu(uint32 titleTextId, ObjectGuid objectGUID)
         {
             WorldPackets::NPC::ClientGossipText& text = packet.GossipText[count];
             text.QuestID = questID;
-            text.ContentTuningID = quest->GetContentTuningId();
+            text.ContentTuningID = 0;
             text.QuestType = item.QuestIcon;
+            text.QuestLevel = quest->GetQuestLevel();
+            text.QuestMaxScalingLevel = quest->GetQuestMaxScalingLevel();
             text.QuestFlags[0] = quest->GetFlags();
             text.QuestFlags[1] = quest->GetFlagsEx();
-            text.QuestFlags[2] = quest->GetFlagsEx2();
             text.Repeatable = quest->IsTurnIn() && quest->IsRepeatable() && !quest->IsDailyOrWeekly() && !quest->IsMonthly();
-            text.ResetByScheduler = quest->IsResetByScheduler();
             text.Important = quest->IsImportant();
-            text.Meta = quest->IsMeta();
 
             text.QuestTitle = quest->GetLogTitle();
             LocaleConstant localeConstant = _session->GetSessionDbLocaleIndex();
@@ -413,15 +409,12 @@ void PlayerMenu::SendQuestGiverQuestListMessage(Object* questgiver)
             questList.QuestDataText.emplace_back();
             WorldPackets::NPC::ClientGossipText& text = questList.QuestDataText.back();
             text.QuestID = questID;
-            text.ContentTuningID = quest->GetContentTuningId();
+            text.ContentTuningID = 0;
             text.QuestType = questMenuItem.QuestIcon;
             text.QuestFlags[0] = quest->GetFlags();
             text.QuestFlags[1] = quest->GetFlagsEx();
-            text.QuestFlags[2] = quest->GetFlagsEx2();
             text.Repeatable = quest->IsTurnIn() && quest->IsRepeatable() && !quest->IsDailyOrWeekly() && !quest->IsMonthly();
-            text.ResetByScheduler = quest->IsResetByScheduler();
             text.Important = quest->IsImportant();
-            text.Meta = quest->IsMeta();
 
             text.QuestTitle = quest->GetLogTitle();
             LocaleConstant localeConstant = _session->GetSessionDbLocaleIndex();
@@ -487,10 +480,8 @@ void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, ObjectGuid npcGU
     packet.PortraitGiverMount = quest->GetQuestGiverPortraitMount();
     packet.PortraitGiverModelSceneID = quest->GetQuestGiverPortraitModelSceneId();
     packet.PortraitTurnIn = quest->GetQuestTurnInPortrait();
-    packet.QuestInfoID = quest->GetQuestInfoID();
     packet.QuestSessionBonus = 0; //quest->GetQuestSessionBonus(); // this is only sent while quest session is active
     packet.AutoLaunched = autoLaunched;
-    packet.ResetByScheduler = quest->IsResetByScheduler();
     packet.DisplayPopup = displayPopup;
     packet.QuestFlags[0] = quest->GetFlags() & (sWorld->getBoolConfig(CONFIG_QUEST_IGNORE_AUTO_ACCEPT) ? ~QUEST_FLAGS_AUTO_ACCEPT : ~0);
     packet.QuestFlags[1] = quest->GetFlagsEx();
@@ -521,9 +512,9 @@ void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, ObjectGuid npcGU
     for (uint32 i = 0; i < objs.size(); ++i)
     {
         packet.Objectives[i].ID = objs[i].ID;
-        packet.Objectives[i].Type = objs[i].Type;
         packet.Objectives[i].ObjectID = objs[i].ObjectID;
         packet.Objectives[i].Amount = objs[i].Amount;
+        packet.Objectives[i].Type = objs[i].Type;
     }
 
     _session->SendPacket(packet.Write());
@@ -592,9 +583,7 @@ void PlayerMenu::SendQuestGiverOfferReward(Quest const* quest, ObjectGuid npcGUI
 
     offer.QuestID = quest->GetQuestId();
     offer.AutoLaunched = autoLaunched;
-    offer.ResetByScheduler = quest->IsResetByScheduler();
     offer.SuggestedPartyMembers = quest->GetSuggestedPlayers();
-    offer.QuestInfoID = quest->GetQuestInfoID();
 
     for (uint32 i = 0; i < QUEST_EMOTE_COUNT && quest->OfferRewardEmote[i]; ++i)
         offer.Emotes.emplace_back(quest->OfferRewardEmote[i], quest->OfferRewardEmoteDelay[i]);
@@ -669,7 +658,6 @@ void PlayerMenu::SendQuestGiverRequestItems(Quest const* quest, ObjectGuid npcGU
     packet.QuestFlags[1] = quest->GetFlagsEx();
     packet.QuestFlags[2] = quest->GetFlagsEx2();
     packet.SuggestPartyMembers = quest->GetSuggestedPlayers();
-    packet.QuestInfoID = quest->GetQuestInfoID();
 
     // incomplete: FD
     // incomplete quest with item objective but item objective is complete DD
@@ -695,7 +683,6 @@ void PlayerMenu::SendQuestGiverRequestItems(Quest const* quest, ObjectGuid npcGU
     }
 
     packet.AutoLaunched = autoLaunched;
-    packet.ResetByScheduler = quest->IsResetByScheduler();
 
     _session->SendPacket(packet.Write());
     TC_LOG_DEBUG("network", "WORLD: Sent SMSG_QUESTGIVER_REQUEST_ITEMS NPC={}, questid={}", npcGUID.ToString(), quest->GetQuestId());

@@ -33,28 +33,30 @@ namespace WorldPackets
             uint8 Slot = 0;
         };
 
-        struct TalentGroupInfo
+        struct TalentInfo
         {
-            uint32 SpecID = 0;
-            std::vector<uint16> TalentIDs;
-            std::vector<PvPTalent> PvPTalents;
+            uint32 TalentID = 0;
+            uint8 Rank = 0;
         };
 
-        struct TalentInfoUpdate
+        struct TalentGroupInfo
         {
-            uint8 ActiveGroup = 0;
-            uint32 PrimarySpecialization = 0;
-            std::vector<TalentGroupInfo> TalentGroups;
+            int32 SpecID = 0;
+            std::vector<TalentInfo> Talents;
+            std::vector<uint16> GlyphIDs;
         };
 
         class UpdateTalentData final : public ServerPacket
         {
         public:
-            UpdateTalentData() : ServerPacket(SMSG_UPDATE_TALENT_DATA, 2+4+4+4+12) { }
+            UpdateTalentData() : ServerPacket(SMSG_UPDATE_TALENT_DATA, 4 + 1 + 1 + 2 + 2 + 2 + 2 + 2 + 2) { }
 
             WorldPacket const* Write() override;
 
-            TalentInfoUpdate Info;
+            uint32 UnspentTalentPoints = 0;
+            uint8 ActiveGroup = 0;
+            bool IsPetTalents = false;
+            std::vector<TalentGroupInfo> TalentGroupInfos;
         };
 
         class LearnTalents final : public ClientPacket
@@ -133,13 +135,44 @@ namespace WorldPackets
         class LearnPvpTalentFailed final : public ServerPacket
         {
         public:
-            LearnPvpTalentFailed() : ServerPacket(SMSG_LEARN_PVP_TALENT_FAILED, 1 + 4 + 4 + (2 + 1) * MAX_PVP_TALENT_SLOTS) { }
+            LearnPvpTalentFailed() : ServerPacket(SMSG_LEARN_PVP_TALENT_FAILED, 1 + 4 + 4 + (2 + 1)) { }
 
             WorldPacket const* Write() override;
 
             uint32 Reason = 0;
             int32 SpellID = 0;
             std::vector<PvPTalent> Talents;
+        };
+
+        class LearnTalent final : public ClientPacket
+        {
+        public:
+            LearnTalent(WorldPacket&& packet) : ClientPacket(CMSG_LEARN_TALENT, std::move(packet)) { }
+
+            void Read() override;
+
+            int32 TalentID = 0;
+            uint16 RequestedRank = 0;
+        };
+
+        class LearnPreviewTalents final : public ClientPacket
+        {
+        public:
+            LearnPreviewTalents(WorldPacket&& packet) : ClientPacket(CMSG_LEARN_PREVIEW_TALENTS, std::move(packet)) { }
+
+            void Read() override;
+
+            Array<TalentInfo, 60> Talents;
+        };
+
+        class RemoveGlyph final : public ClientPacket
+        {
+        public:
+            RemoveGlyph(WorldPacket&& packet) : ClientPacket(CMSG_REMOVE_GLYPH, std::move(packet)) { }
+
+            void Read() override;
+
+            uint8 GlyphSlot = 0;
         };
     }
 }

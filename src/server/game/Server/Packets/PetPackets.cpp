@@ -148,11 +148,6 @@ void WorldPackets::Pet::PetAbandon::Read()
     _worldPacket >> Pet;
 }
 
-void WorldPackets::Pet::PetAbandonByNumber::Read()
-{
-    _worldPacket >> PetNumber;
-}
-
 void WorldPackets::Pet::PetSpellAutocast::Read()
 {
     _worldPacket >> PetGUID;

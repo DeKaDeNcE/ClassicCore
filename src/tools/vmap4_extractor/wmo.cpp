@@ -200,8 +200,6 @@ bool WMORoot::ConvertToVMAPRootWmo(FILE* pOutfile)
     fwrite(&nVectors,sizeof(nVectors), 1, pOutfile); // will be filled later
     fwrite(&nGroups, 4, 1, pOutfile);
     fwrite(&RootWMOID, 4, 1, pOutfile);
-    ModelFlags tcFlags = ModelFlags::None;
-    fwrite(&tcFlags, sizeof(ModelFlags), 1, pOutfile);
     return true;
 }
 
@@ -249,10 +247,7 @@ bool WMOGroup::open(WMORoot* rootWMO)
             f.read(&nBatchC, 4);
             f.read(&fogIdx, 4);
             f.read(&groupLiquid, 4);
-            f.read(&groupWMOID, 4);
-            f.read(&mogpFlags2, 4);
-            f.read(&parentOrFirstChildSplitGroupIndex, 2);
-            f.read(&nextSplitChildGroupIndex, 2);
+            f.read(&groupWMOID,4);
 
             // according to WoW.Dev Wiki:
             if (rootWMO->flags & 4)
@@ -591,12 +586,13 @@ void MapObject::Extract(ADT::MODF const& mapObjDef, char const* WmoInstName, boo
 
     //-----------add_in _dir_file----------------
 
-    std::string tempname = Trinity::StringFormat("{}/{}", szWorkDirWmo, WmoInstName);
-    FILE* input = fopen(tempname.c_str(), "r+b");
+    char tempname[512];
+    sprintf(tempname, "%s/%s", szWorkDirWmo, WmoInstName);
+    FILE* input = fopen(tempname, "r+b");
 
     if (!input)
     {
-        printf("WMOInstance::WMOInstance: couldn't open %s\n", tempname.c_str());
+        printf("WMOInstance::WMOInstance: couldn't open %s\n", tempname);
         return;
     }
 
@@ -622,13 +618,14 @@ void MapObject::Extract(ADT::MODF const& mapObjDef, char const* WmoInstName, boo
     float scale = 1.0f;
     if (mapObjDef.Flags & 0x4)
         scale = mapObjDef.Scale / 1024.0f;
-    uint32 uniqueId = GenerateUniqueObjectId(mapObjDef.UniqueId, 0, true);
+    uint32 uniqueId = GenerateUniqueObjectId(mapObjDef.UniqueId, 0);
     uint8 flags = MOD_HAS_BOUND;
     uint8 nameSet = mapObjDef.NameSet;
     if (mapID != originalMapId)
         flags |= MOD_PARENT_SPAWN;
 
-    //write Flags, NameSet, UniqueId, Pos, Rot, Scale, Bound_lo, Bound_hi, name
+    //write mapID, Flags, NameSet, UniqueId, Pos, Rot, Scale, Bound_lo, Bound_hi, name
+    fwrite(&mapID, sizeof(uint32), 1, pDirfile);
     fwrite(&flags, sizeof(uint8), 1, pDirfile);
     fwrite(&nameSet, sizeof(uint8), 1, pDirfile);
     fwrite(&uniqueId, sizeof(uint32), 1, pDirfile);

@@ -27,7 +27,7 @@
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include "Player.h"
-#include "RealmList.h"
+#include "Realm.h"
 #include "Util.h"
 #include "World.h"
 #include "WorldSession.h"
@@ -290,19 +290,18 @@ void BattlePetMgr::LoadFromDB(PreparedQueryResult pets, PreparedQueryResult slot
                 pet.NameTimestamp = fields[10].GetInt64();
                 pet.PacketInfo.CreatureID = speciesEntry->CreatureID;
 
-                if (!fields[13].IsNull())
+                if (!fields[12].IsNull())
                 {
                     pet.DeclinedName = std::make_unique<DeclinedName>();
                     for (uint8 i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
-                        pet.DeclinedName->name[i] = fields[13 + i].GetString();
+                        pet.DeclinedName->name[i] = fields[12 + i].GetString();
                 }
 
                 if (!ownerGuid.IsEmpty())
                 {
                     pet.PacketInfo.OwnerInfo.emplace();
                     pet.PacketInfo.OwnerInfo->Guid = ownerGuid;
-                    if (std::shared_ptr<Realm const> ownerRealm = sRealmList->GetRealm(fields[12].GetInt32()))
-                        pet.PacketInfo.OwnerInfo->PlayerVirtualRealm = pet.PacketInfo.OwnerInfo->PlayerNativeRealm = ownerRealm->Id.GetAddress();
+                    pet.PacketInfo.OwnerInfo->PlayerVirtualRealm = pet.PacketInfo.OwnerInfo->PlayerNativeRealm = GetVirtualRealmAddress();
                 }
 
                 pet.SaveInfo = BATTLE_PET_UNCHANGED;
@@ -354,7 +353,7 @@ void BattlePetMgr::SaveToDB(LoginDatabaseTransaction trans)
                 if (itr->second.PacketInfo.OwnerInfo)
                 {
                     stmt->setInt64(12, itr->second.PacketInfo.OwnerInfo->Guid.GetCounter());
-                    stmt->setInt32(13, sRealmList->GetCurrentRealmId().Realm);
+                    stmt->setInt32(13, realm.Id.Realm);
                 }
                 else
                 {
@@ -475,7 +474,7 @@ void BattlePetMgr::AddPet(uint32 species, uint32 display, uint16 breed, BattlePe
     {
         pet.PacketInfo.OwnerInfo.emplace();
         pet.PacketInfo.OwnerInfo->Guid = player->GetGUID();
-        pet.PacketInfo.OwnerInfo->PlayerVirtualRealm = pet.PacketInfo.OwnerInfo->PlayerNativeRealm = player->m_playerData->VirtualPlayerRealm;
+        pet.PacketInfo.OwnerInfo->PlayerVirtualRealm = pet.PacketInfo.OwnerInfo->PlayerNativeRealm = GetVirtualRealmAddress();
     }
 
     pet.SaveInfo = BATTLE_PET_NEW;

@@ -207,7 +207,6 @@ WorldPacket const* WorldPackets::Misc::WorldServerInfo::Write()
     _worldPacket << uint32(DifficultyID);
     _worldPacket.WriteBit(IsTournamentRealm);
     _worldPacket.WriteBit(XRealmPvpAlert);
-    _worldPacket.WriteBit(BlockExitingLoadingScreen);
     _worldPacket.WriteBit(RestrictedAccountMaxLevel.has_value());
     _worldPacket.WriteBit(RestrictedAccountMaxMoney.has_value());
     _worldPacket.WriteBit(InstanceGroupSize.has_value());
@@ -397,7 +396,6 @@ WorldPacket const* WorldPackets::Misc::LevelUpInfo::Write()
         _worldPacket << stat;
 
     _worldPacket << int32(NumNewTalents);
-    _worldPacket << int32(NumNewPvpTalentSlots);
 
     return &_worldPacket;
 }
@@ -438,7 +436,7 @@ WorldPacket const* WorldPackets::Misc::EnableBarberShop::Write()
 
 ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Misc::PhaseShiftDataPhase const& phaseShiftDataPhase)
 {
-    data << uint32(phaseShiftDataPhase.PhaseFlags);
+    data << uint16(phaseShiftDataPhase.PhaseFlags);
     data << uint16(phaseShiftDataPhase.Id);
     return data;
 }
@@ -521,13 +519,6 @@ WorldPacket const* WorldPackets::Misc::PlaySpeakerbotSound::Write()
 {
     _worldPacket << SourceObjectGUID;
     _worldPacket << int32(SoundKitID);
-
-    return &_worldPacket;
-}
-
-WorldPacket const* WorldPackets::Misc::StopSpeakerbotSound::Write()
-{
-    _worldPacket << SourceObjectGUID;
 
     return &_worldPacket;
 }
@@ -761,20 +752,10 @@ void WorldPackets::Misc::CloseInteraction::Read()
 WorldPacket const* WorldPackets::Misc::StartTimer::Write()
 {
     _worldPacket << TotalTime;
-    _worldPacket << int32(Type);
     _worldPacket << TimeLeft;
-    _worldPacket.WriteBit(PlayerGuid.has_value());
-    _worldPacket.FlushBits();
-
-    if (PlayerGuid)
-        _worldPacket << *PlayerGuid;
+    _worldPacket << int32(Type);
 
     return &_worldPacket;
-}
-
-void WorldPackets::Misc::QueryCountdownTimer::Read()
-{
-    TimerType = _worldPacket.read<CountdownTimerType, int32>();
 }
 
 void WorldPackets::Misc::ConversationLineStarted::Read()

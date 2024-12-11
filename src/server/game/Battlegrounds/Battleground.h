@@ -22,7 +22,6 @@
 #include "ObjectGuid.h"
 #include "Position.h"
 #include "SharedDefines.h"
-#include "UniqueTrackablePtr.h"
 #include "ZoneScript.h"
 #include <deque>
 #include <map>
@@ -37,7 +36,6 @@ class Transport;
 class Unit;
 class WorldObject;
 class WorldPacket;
-struct BattlegroundPlayerScoreTemplate;
 struct BattlegroundScore;
 struct BattlegroundTemplate;
 struct PVPDifficultyEntry;
@@ -252,7 +250,7 @@ This class is used to:
 3. some certain cases, same for all battlegrounds
 4. It has properties same for all battlegrounds
 */
-class TC_GAME_API Battleground
+class TC_GAME_API Battleground : public ZoneScript
 {
     public:
         Battleground(BattlegroundTemplate const* battlegroundTemplate);
@@ -263,7 +261,17 @@ class TC_GAME_API Battleground
 
         void Update(uint32 diff);
 
-        void Reset();
+        virtual bool SetupBattleground()                    // must be implemented in BG subclass
+        {
+            return true;
+        }
+        virtual void Reset();                               // resets all common properties for battlegrounds, must be implemented and called in BG subclass
+        virtual void StartingEventCloseDoors() { }
+        virtual void StartingEventOpenDoors() { }
+
+        virtual void DestroyGate(Player* /*player*/, GameObject* /*go*/) { }
+
+        void TriggerGameEvent(uint32 gameEventId, WorldObject* source = nullptr, WorldObject* target = nullptr) override;
 
         /* Battleground */
         // Get methods:
@@ -301,7 +309,6 @@ class TC_GAME_API Battleground
         void SetRated(bool state)           { m_IsRated = state; }
         void SetArenaType(uint8 type)       { m_ArenaType = type; }
         void SetWinner(PvPTeamId winnerTeamId) { _winnerTeamId = winnerTeamId; }
-        std::unordered_set<uint32> const* GetPvpStatIds() const { return _pvpStatIds; }
 
         void ModifyStartDelayTime(int diff) { m_StartDelayTime -= diff; }
         void SetStartDelayTime(int Time)    { m_StartDelayTime = Time; }
@@ -336,7 +343,7 @@ class TC_GAME_API Battleground
         uint32 GetMapId() const;
 
         // Map pointers
-        void SetBgMap(BattlegroundMap* map);
+        void SetBgMap(BattlegroundMap* map) { m_Map = map; }
         BattlegroundMap* GetBgMap() const;
         BattlegroundMap* FindBgMap() const { return m_Map; }
 
@@ -373,11 +380,7 @@ class TC_GAME_API Battleground
         void SetBgRaid(Team team, Group* bg_raid);
 
         virtual void BuildPvPLogDataPacket(WorldPackets::Battleground::PVPMatchStatistics& pvpLogData) const;
-
-        BattlegroundScore const* GetBattlegroundScore(Player* player) const;
-
-        bool UpdatePlayerScore(Player* player, uint32 type, uint32 value, bool doAddHonor = true);
-        void UpdatePvpStat(Player* player, uint32 pvpStatId, uint32 value);
+        virtual bool UpdatePlayerScore(Player* player, uint32 type, uint32 value, bool doAddHonor = true);
 
         static TeamId GetTeamIndexByTeamId(Team team) { return team == ALLIANCE ? TEAM_ALLIANCE : TEAM_HORDE; }
         uint32 GetPlayersCountByTeam(Team team) const { return m_PlayersCount[GetTeamIndexByTeamId(team)]; }
@@ -399,13 +402,24 @@ class TC_GAME_API Battleground
         void SetArenaMatchmakerRating(Team team, uint32 MMR){ m_ArenaTeamMMR[GetTeamIndexByTeamId(team)] = MMR; }
         uint32 GetArenaMatchmakerRating(Team team) const          { return m_ArenaTeamMMR[GetTeamIndexByTeamId(team)]; }
 
+        // Triggers handle
+        // must be implemented in BG subclass
+        virtual void HandleAreaTrigger(Player* /*player*/, uint32 /*trigger*/, bool /*entered*/);
         // must be implemented in BG subclass if need AND call base class generic code
         virtual void HandleKillPlayer(Player* player, Player* killer);
-        virtual void HandleKillUnit(Creature* /*creature*/, Unit* /*killer*/);
+        virtual void HandleKillUnit(Creature* /*creature*/, Unit* /*killer*/) { }
 
         // Battleground events
+        virtual void EventPlayerDroppedFlag(Player* /*player*/) { }
+        virtual void EventPlayerClickedOnFlag(Player* /*player*/, GameObject* /*target_obj*/) { }
         void EventPlayerLoggedIn(Player* player);
         void EventPlayerLoggedOut(Player* player);
+        void ProcessEvent(WorldObject* /*obj*/, uint32 /*eventId*/, WorldObject* /*invoker*/) override { }
+
+        virtual void HandlePlayerResurrect(Player* /*player*/) { }
+
+        // Death related
+        virtual WorldSafeLocsEntry const* GetClosestGraveyard(Player* player);
 
         virtual WorldSafeLocsEntry const* GetExploitTeleportLocation(Team /*team*/) { return nullptr; }
         // GetExploitTeleportLocation(TeamId) must be implemented in the battleground subclass.
@@ -416,11 +430,31 @@ class TC_GAME_API Battleground
         void AddOrSetPlayerToCorrectBgGroup(Player* player, Team team);
 
         virtual void RemovePlayerAtLeave(ObjectGuid guid, bool Transport, bool SendPacket);
+                                                            // can be extended in in BG subclass
+
+        /// @todo make this protected:
+        GuidVector BgObjects;
+        GuidVector BgCreatures;
+        void SpawnBGObject(uint32 type, uint32 respawntime);
+        virtual bool AddObject(uint32 type, uint32 entry, float x, float y, float z, float o, float rotation0, float rotation1, float rotation2, float rotation3, uint32 respawnTime = 0, GOState goState = GO_STATE_READY);
+        bool AddObject(uint32 type, uint32 entry, Position const& pos, float rotation0, float rotation1, float rotation2, float rotation3, uint32 respawnTime = 0, GOState goState = GO_STATE_READY);
+        virtual Creature* AddCreature(uint32 entry, uint32 type, float x, float y, float z, float o, TeamId teamId = TEAM_NEUTRAL, uint32 respawntime = 0, Transport* transport = nullptr);
+        Creature* AddCreature(uint32 entry, uint32 type, Position const& pos, TeamId teamId = TEAM_NEUTRAL, uint32 respawntime = 0, Transport* transport = nullptr);
+        bool DelCreature(uint32 type);
+        bool DelObject(uint32 type);
+        bool RemoveObjectFromWorld(uint32 type);
+        virtual bool AddSpiritGuide(uint32 type, float x, float y, float z, float o, TeamId teamId = TEAM_NEUTRAL);
+        bool AddSpiritGuide(uint32 type, Position const& pos, TeamId teamId = TEAM_NEUTRAL);
+        int32 GetObjectType(ObjectGuid guid);
+
+        void DoorOpen(uint32 type);
+        void DoorClose(uint32 type);
 
         virtual bool HandlePlayerUnderMap(Player* /*player*/) { return false; }
 
         // since arenas can be AvA or Hvh, we have to get the "temporary" team of a player
         Team GetPlayerTeam(ObjectGuid guid) const;
+        Team GetOtherTeam(Team team) const;
         bool IsPlayerInBattleground(ObjectGuid guid) const;
         bool IsPlayerMercenaryInBattleground(ObjectGuid guid) const;
 
@@ -430,9 +464,14 @@ class TC_GAME_API Battleground
         void RewardXPAtKill(Player* killer, Player* victim);
         bool CanAwardArenaPoints() const { return GetMinLevel() >= BG_AWARD_ARENA_POINTS_MIN_LEVEL; }
 
+        virtual ObjectGuid GetFlagPickerGUID(int32 /*team*/ = -1) const { return ObjectGuid::Empty; }
+        virtual void SetDroppedFlagGUID(ObjectGuid /*guid*/, int32 /*team*/ = -1) { }
+        virtual void HandleQuestComplete(uint32 /*questid*/, Player* /*player*/) { }
+        virtual bool CanActivateGO(int32 /*entry*/, uint32 /*team*/) const { return true; }
+        virtual bool IsSpellAllowed(uint32 /*spellId*/, Player const* /*player*/) const { return true; }
         uint32 GetTeamScore(TeamId teamId) const;
 
-        Team GetPrematureWinner();
+        virtual Team GetPrematureWinner();
 
         // because BattleGrounds with different types and same level range has different m_BracketId
         uint8 GetUniqueBracketId() const;
@@ -448,13 +487,6 @@ class TC_GAME_API Battleground
 
             return &itr->second;
         }
-
-        void AddPoint(Team team, uint32 points = 1) { m_TeamScores[GetTeamIndexByTeamId(team)] += points; }
-        void SetTeamPoint(Team team, uint32 points = 0) { m_TeamScores[GetTeamIndexByTeamId(team)] = points; }
-        void RemovePoint(Team team, uint32 points = 1) { m_TeamScores[GetTeamIndexByTeamId(team)] -= points; }
-
-        Trinity::unique_weak_ptr<Battleground> GetWeakPtr() const { return m_weakRef; }
-        void SetWeakPtr(Trinity::unique_weak_ptr<Battleground> weakRef) { m_weakRef = std::move(weakRef); }
 
     protected:
         // this method is called, when BG cannot spawn its own spirit guide, or something is wrong, It correctly ends Battleground
@@ -525,6 +557,7 @@ class TC_GAME_API Battleground
         BattlegroundStatus m_Status;
         uint32 m_ClientInstanceID;                          // the instance-id which is sent to the client and without any other internal use
         uint32 m_StartTime;
+        uint32 m_CountdownTimer;
         uint32 m_ResetStatTimer;
         uint32 m_ValidStartPositionTimer;
         int32 m_EndTime;                                    // it is set to 120000 when bg is ending and it decreases itself
@@ -565,13 +598,7 @@ class TC_GAME_API Battleground
 
         BattlegroundTemplate const* _battlegroundTemplate;
         PVPDifficultyEntry const* _pvpDifficultyEntry;
-        std::unordered_set<uint32> const* _pvpStatIds;
 
         std::vector<WorldPackets::Battleground::BattlegroundPlayerPosition> _playerPositions;
-
-        // Time when the first message "the battle will begin in 2minutes" is send (or 1m for arenas)
-        time_t _preparationStartTime;
-
-        Trinity::unique_weak_ptr<Battleground> m_weakRef;
 };
 #endif

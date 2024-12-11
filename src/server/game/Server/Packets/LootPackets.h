@@ -75,7 +75,6 @@ namespace WorldPackets
             std::vector<LootCurrency> Currencies;
             bool Acquired        = false;
             bool AELooting       = false;
-            bool SuppressError   = false; // Hides error from UI
         };
 
         struct LootRequest
@@ -227,7 +226,7 @@ namespace WorldPackets
             Duration<Milliseconds, uint32> RollTime;
             uint8 Method = 0;
             uint8 ValidRolls = 0;
-            std::array<LootRollIneligibilityReason, 5> LootRollIneligibleReason = { };
+            std::array<LootRollIneligibilityReason, 4> LootRollIneligibleReason = { };
             LootItemData Item;
             int32 DungeonEncounterID = 0;
         };

@@ -20,12 +20,10 @@
 
 #include "Packet.h"
 #include "AuthenticationPackets.h"
-#include "ItemPacketsCommon.h"
 #include "NPCHandler.h"
 #include "ObjectGuid.h"
 #include "PacketUtilities.h"
 #include "Position.h"
-#include "QuestDef.h"
 #include "RaceMask.h"
 #include "SharedDefines.h"
 #include "UnitDefines.h"
@@ -69,12 +67,13 @@ namespace WorldPackets
             int32 CreatureType = 0;
             int32 CreatureFamily = 0;
             int32 Classification = 0;
+            uint32 PetSpellDataId = 0;
             CreatureDisplayStats Display;
             float HpMulti = 0.0f;
             float EnergyMulti = 0.0f;
+            bool Cilivilan = false;
             bool Leader = false;
             std::vector<int32> QuestItems;
-            std::vector<int32> QuestCurrencies;
             uint32 CreatureMovementInfoID = 0;
             int32 HealthScalingExpansion = 0;
             uint32 RequiredExpansion = 0;
@@ -99,6 +98,12 @@ namespace WorldPackets
             bool Allow = false;
             CreatureStats Stats;
             uint32 CreatureID = 0;
+        };
+
+        struct PlayerGuidLookupHint
+        {
+            Optional<uint32> VirtualRealmAddress; ///< current realm (?) (identifier made from the Index, BattleGroup and Region)
+            Optional<uint32> NativeRealmAddress; ///< original realm (?) (identifier made from the Index, BattleGroup and Region)
         };
 
         class QueryPlayerNames final : public ClientPacket
@@ -127,7 +132,6 @@ namespace WorldPackets
             uint8 ClassID = CLASS_NONE;
             uint8 Level = 0;
             uint8 Unused915 = 0;
-            int32 TimerunningSeasonID = 0;
             DeclinedName DeclinedNames;
         };
 
@@ -438,61 +442,7 @@ namespace WorldPackets
             WorldPackets::Auth::VirtualRealmNameInfo NameInfo;
         };
 
-        class QueryTreasurePicker final : public ClientPacket
-        {
-        public:
-            QueryTreasurePicker(WorldPacket&& packet) : ClientPacket(CMSG_QUERY_TREASURE_PICKER, std::move(packet)) { }
-
-            void Read() override;
-
-            uint32 QuestID = 0;
-            uint32 TreasurePickerID = 0;
-        };
-
-        struct TreasurePickItem
-        {
-            Item::ItemInstance Item;
-            uint32 Quantity = 0;
-            Optional<QuestRewardContextFlags> ContextFlags;
-        };
-
-        struct TreasurePickCurrency
-        {
-            uint32 CurrencyID = 0;
-            uint32 Quantity = 0;
-            Optional<QuestRewardContextFlags> ContextFlags;
-        };
-
-        struct TreasurePickerBonus
-        {
-            std::vector<TreasurePickItem> Items;
-            std::vector<TreasurePickCurrency> Currencies;
-            uint64 Money = 0;
-            bool Unknown = false;
-        };
-
-        struct TreasurePickerPick
-        {
-            std::vector<TreasurePickItem> Items;
-            std::vector<TreasurePickCurrency> Currencies;
-            std::vector<TreasurePickerBonus> Bonuses;
-            uint64 Money = 0;
-            int32 Flags = 0;
-            bool IsChoice = false;
-        };
-
-        class TreasurePickerResponse final : public ServerPacket
-        {
-        public:
-            TreasurePickerResponse() : ServerPacket(SMSG_TREASURE_PICKER_RESPONSE) { }
-
-            WorldPacket const* Write() override;
-
-            uint32 QuestID = 0;
-            uint32 TreasurePickerID = 0;
-            TreasurePickerPick Pick;
-        };
-
+        ByteBuffer& operator<<(ByteBuffer& data, PlayerGuidLookupHint const& lookupHint);
         ByteBuffer& operator<<(ByteBuffer& data, PlayerGuidLookupData const& lookupData);
     }
 }

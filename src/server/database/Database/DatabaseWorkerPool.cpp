@@ -37,6 +37,7 @@
 #include <mysqld_error.h>
 #include <utility>
 #ifdef TRINITY_DEBUG
+#include <sstream>
 #include <boost/stacktrace.hpp>
 #endif
 
@@ -49,14 +50,6 @@
 #define MIN_MARIADB_SERVER_VERSION_STRING "10.2.9"
 #define MIN_MARIADB_CLIENT_VERSION 30003u
 #define MIN_MARIADB_CLIENT_VERSION_STRING "3.0.3"
-
-namespace
-{
-#ifdef TRINITY_DEBUG
-template<typename Database>
-thread_local bool WarnSyncQueries = false;
-#endif
-}
 
 template<typename T>
 struct DatabaseWorkerPool<T>::QueueSizeTracker
@@ -267,7 +260,7 @@ PreparedQueryResult DatabaseWorkerPool<T>::Query(PreparedStatement<T>* stmt)
 template <class T>
 QueryCallback DatabaseWorkerPool<T>::AsyncQuery(char const* sql)
 {
-    std::future<QueryResult> result = boost::asio::post(_ioContext->get_executor(), boost::asio::use_future([this, sql = std::string(sql), tracker = QueueSizeTracker(this)]
+    QueryResultFuture result = boost::asio::post(_ioContext->get_executor(), boost::asio::use_future([this, sql = std::string(sql), tracker = QueueSizeTracker(this)]
     {
         T* conn = GetAsyncConnectionForCurrentThread();
         return BasicStatementTask::Query(conn, sql.c_str());
@@ -278,7 +271,7 @@ QueryCallback DatabaseWorkerPool<T>::AsyncQuery(char const* sql)
 template <class T>
 QueryCallback DatabaseWorkerPool<T>::AsyncQuery(PreparedStatement<T>* stmt)
 {
-    std::future<PreparedQueryResult> result = boost::asio::post(_ioContext->get_executor(), boost::asio::use_future([this, stmt = std::unique_ptr<PreparedStatement<T>>(stmt), tracker = QueueSizeTracker(this)]
+    PreparedQueryResultFuture result = boost::asio::post(_ioContext->get_executor(), boost::asio::use_future([this, stmt = std::unique_ptr<PreparedStatement<T>>(stmt), tracker = QueueSizeTracker(this)]
     {
         T* conn = GetAsyncConnectionForCurrentThread();
         return PreparedStatementTask::Query(conn, stmt.get());
@@ -289,7 +282,7 @@ QueryCallback DatabaseWorkerPool<T>::AsyncQuery(PreparedStatement<T>* stmt)
 template <class T>
 SQLQueryHolderCallback DatabaseWorkerPool<T>::DelayQueryHolder(std::shared_ptr<SQLQueryHolder<T>> holder)
 {
-    std::future<void> result = boost::asio::post(_ioContext->get_executor(), boost::asio::use_future([this, holder, tracker = QueueSizeTracker(this)]
+    QueryResultHolderFuture result = boost::asio::post(_ioContext->get_executor(), boost::asio::use_future([this, holder, tracker = QueueSizeTracker(this)]
     {
         T* conn = GetAsyncConnectionForCurrentThread();
         SQLQueryHolderTask::Execute(conn, holder.get());
@@ -350,7 +343,7 @@ TransactionCallback DatabaseWorkerPool<T>::AsyncCommitTransaction(SQLTransaction
     }
 #endif // TRINITY_DEBUG
 
-    std::future<bool> result = boost::asio::post(_ioContext->get_executor(), boost::asio::use_future([this, transaction, tracker = QueueSizeTracker(this)]
+    TransactionFuture result = boost::asio::post(_ioContext->get_executor(), boost::asio::use_future([this, transaction, tracker = QueueSizeTracker(this)]
     {
         T* conn = GetAsyncConnectionForCurrentThread();
         return TransactionTask::Execute(conn, transaction);
@@ -433,14 +426,6 @@ void DatabaseWorkerPool<T>::KeepAlive()
     }
 }
 
-#ifdef TRINITY_DEBUG
-template <class T>
-void DatabaseWorkerPool<T>::WarnAboutSyncQueries([[maybe_unused]] bool warn)
-{
-    WarnSyncQueries<T> = warn;
-}
-#endif
-
 template <class T>
 uint32 DatabaseWorkerPool<T>::OpenConnections(InternalIndex type, uint8 numConnections)
 {
@@ -500,9 +485,11 @@ template <class T>
 T* DatabaseWorkerPool<T>::GetFreeConnection()
 {
 #ifdef TRINITY_DEBUG
-    if (WarnSyncQueries<T>)
+    if (_warnSyncQueries)
     {
-        TC_LOG_WARN("sql.performances", "Sync query at:\n{}", boost::stacktrace::to_string(boost::stacktrace::stacktrace()));
+        std::ostringstream ss;
+        ss << boost::stacktrace::stacktrace();
+        TC_LOG_WARN("sql.performances", "Sync query at:\n{}", ss.str());
     }
 #endif
 

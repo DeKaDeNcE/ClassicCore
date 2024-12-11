@@ -46,8 +46,8 @@ class TC_GAME_API AreaTrigger final : public WorldObject, public GridObject<Area
         ~AreaTrigger();
 
     protected:
-        void BuildValuesCreate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const override;
-        void BuildValuesUpdate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const override;
+        void BuildValuesCreate(ByteBuffer* data, Player const* target) const override;
+        void BuildValuesUpdate(ByteBuffer* data, Player const* target) const override;
         void ClearUpdateMask(bool remove) override;
 
     public:
@@ -76,7 +76,6 @@ class TC_GAME_API AreaTrigger final : public WorldObject, public GridObject<Area
         bool IsCustom() const { return _areaTriggerTemplate->Id.IsCustom; }
         bool IsServerSide() const { return _areaTriggerTemplate->Flags.HasFlag(AreaTriggerFlag::IsServerSide); }
         bool IsStaticSpawn() const { return _spawnId != 0; }
-        bool HasActionSetFlag(AreaTriggerActionSetFlag flag) const { return _areaTriggerTemplate->ActionSetFlags.HasFlag(flag); }
 
         bool IsNeverVisibleFor(WorldObject const* seer, bool allowServersideObjects = false) const override;
 
@@ -85,13 +84,12 @@ class TC_GAME_API AreaTrigger final : public WorldObject, public GridObject<Area
         float GetStationaryZ() const override { return _stationaryPosition.GetPositionZ(); }
         float GetStationaryO() const override { return _stationaryPosition.GetOrientation(); }
         void RelocateStationaryPosition(Position const& pos) { _stationaryPosition.Relocate(pos); }
-        void PlaySpellVisual(uint32 spellVisualId) const;
 
     private:
-        bool Create(AreaTriggerCreatePropertiesId areaTriggerCreatePropertiesId, Map* map, Position const& pos, int32 duration, AreaTriggerSpawn const* spawnData = nullptr, Unit* caster = nullptr, Unit* target = nullptr, SpellCastVisual spellVisual = { 0, 0 }, SpellInfo const* spellInfo = nullptr, Spell* spell = nullptr, AuraEffect const* aurEff = nullptr);
+        bool Create(AreaTriggerCreatePropertiesId areaTriggerCreatePropertiesId, Map* map, Position const& pos, int32 duration, AreaTriggerSpawn const* spawnData = nullptr, Unit* caster = nullptr, Unit* target = nullptr, SpellCastVisual spellVisual = { 0 }, SpellInfo const* spellInfo = nullptr, Spell* spell = nullptr, AuraEffect const* aurEff = nullptr);
 
     public:
-        static AreaTrigger* CreateAreaTrigger(AreaTriggerCreatePropertiesId areaTriggerCreatePropertiesId, Position const& pos, int32 duration, Unit* caster, Unit* target, SpellCastVisual spellVisual = { 0, 0 }, SpellInfo const* spellInfo = nullptr, Spell* spell = nullptr, AuraEffect const* aurEff = nullptr);
+        static AreaTrigger* CreateAreaTrigger(AreaTriggerCreatePropertiesId areaTriggerCreatePropertiesId, Position const& pos, int32 duration, Unit* caster, Unit* target, SpellCastVisual spellVisual = { 0 }, SpellInfo const* spellInfo = nullptr, Spell* spell = nullptr, AuraEffect const* aurEff = nullptr);
         static ObjectGuid CreateNewMovementForceId(Map* map, uint32 areaTriggerId);
         bool LoadFromDB(ObjectGuid::LowType spawnId, Map* map, bool addToMap, bool allowDuplicate);
 
@@ -101,8 +99,6 @@ class TC_GAME_API AreaTrigger final : public WorldObject, public GridObject<Area
         uint32 GetSpellId() const { return m_areaTriggerData->SpellID; }
         AuraEffect const* GetAuraEffect() const { return _aurEff; }
         uint32 GetTimeSinceCreated() const { return _timeSinceCreated; }
-
-        void SetHeightIgnoresScale(bool heightIgnoresScale) { SetUpdateFieldValue(m_values.ModifyValue(&AreaTrigger::m_areaTriggerData).ModifyValue(&UF::AreaTriggerData::HeightIgnoresScale), heightIgnoresScale); }
 
         void SetOverrideScaleCurve(float overrideScale);
         void SetOverrideScaleCurve(std::array<DBCPosition2D, 2> const& points, Optional<uint32> startTimeOffset = {}, CurveInterpolationMode interpolation = CurveInterpolationMode::Linear);
@@ -191,6 +187,7 @@ class TC_GAME_API AreaTrigger final : public WorldObject, public GridObject<Area
         void SearchUnitInCylinder(std::vector<Unit*>& targetList);
         void SearchUnitInDisk(std::vector<Unit*>& targetList);
         void SearchUnitInBoundedPlane(std::vector<Unit*>& targetList);
+        bool CheckIsInPolygon2D(Position const* pos) const;
         void HandleUnitEnterExit(std::vector<Unit*> const& targetList);
 
         void DoActions(Unit* unit);

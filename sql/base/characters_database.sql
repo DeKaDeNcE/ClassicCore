@@ -460,7 +460,7 @@ CREATE TABLE `character_action` (
   `spec` tinyint unsigned NOT NULL DEFAULT '0',
   `traitConfigId` int NOT NULL DEFAULT '0',
   `button` tinyint unsigned NOT NULL DEFAULT '0',
-  `action` bigint unsigned NOT NULL DEFAULT '0',
+  `action` int unsigned NOT NULL DEFAULT '0',
   `type` tinyint unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`guid`,`spec`,`traitConfigId`,`button`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -888,138 +888,6 @@ LOCK TABLES `character_fishingsteps` WRITE;
 UNLOCK TABLES;
 
 --
--- Table structure for table `character_garrison`
---
-
-DROP TABLE IF EXISTS `character_garrison`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `character_garrison` (
-  `guid` bigint unsigned NOT NULL,
-  `siteLevelId` int unsigned NOT NULL DEFAULT '0',
-  `followerActivationsRemainingToday` int unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`guid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `character_garrison`
---
-
-LOCK TABLES `character_garrison` WRITE;
-/*!40000 ALTER TABLE `character_garrison` DISABLE KEYS */;
-/*!40000 ALTER TABLE `character_garrison` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `character_garrison_blueprints`
---
-
-DROP TABLE IF EXISTS `character_garrison_blueprints`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `character_garrison_blueprints` (
-  `guid` bigint unsigned NOT NULL,
-  `buildingId` int unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`guid`,`buildingId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `character_garrison_blueprints`
---
-
-LOCK TABLES `character_garrison_blueprints` WRITE;
-/*!40000 ALTER TABLE `character_garrison_blueprints` DISABLE KEYS */;
-/*!40000 ALTER TABLE `character_garrison_blueprints` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `character_garrison_buildings`
---
-
-DROP TABLE IF EXISTS `character_garrison_buildings`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `character_garrison_buildings` (
-  `guid` bigint unsigned NOT NULL,
-  `plotInstanceId` int unsigned NOT NULL DEFAULT '0',
-  `buildingId` int unsigned NOT NULL DEFAULT '0',
-  `timeBuilt` bigint NOT NULL,
-  `active` tinyint unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`guid`,`plotInstanceId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `character_garrison_buildings`
---
-
-LOCK TABLES `character_garrison_buildings` WRITE;
-/*!40000 ALTER TABLE `character_garrison_buildings` DISABLE KEYS */;
-/*!40000 ALTER TABLE `character_garrison_buildings` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `character_garrison_follower_abilities`
---
-
-DROP TABLE IF EXISTS `character_garrison_follower_abilities`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `character_garrison_follower_abilities` (
-  `dbId` bigint unsigned NOT NULL,
-  `abilityId` int unsigned NOT NULL,
-  `slot` tinyint unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`dbId`,`abilityId`,`slot`),
-  CONSTRAINT `fk_foll_dbid` FOREIGN KEY (`dbId`) REFERENCES `character_garrison_followers` (`dbId`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `character_garrison_follower_abilities`
---
-
-LOCK TABLES `character_garrison_follower_abilities` WRITE;
-/*!40000 ALTER TABLE `character_garrison_follower_abilities` DISABLE KEYS */;
-/*!40000 ALTER TABLE `character_garrison_follower_abilities` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `character_garrison_followers`
---
-
-DROP TABLE IF EXISTS `character_garrison_followers`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `character_garrison_followers` (
-  `dbId` bigint unsigned NOT NULL,
-  `guid` bigint unsigned NOT NULL,
-  `followerId` int unsigned NOT NULL,
-  `quality` int unsigned NOT NULL DEFAULT '2',
-  `level` int unsigned NOT NULL DEFAULT '90',
-  `itemLevelWeapon` int unsigned NOT NULL DEFAULT '600',
-  `itemLevelArmor` int unsigned NOT NULL DEFAULT '600',
-  `xp` int unsigned NOT NULL DEFAULT '0',
-  `currentBuilding` int unsigned NOT NULL DEFAULT '0',
-  `currentMission` int unsigned NOT NULL DEFAULT '0',
-  `status` int unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`dbId`),
-  UNIQUE KEY `idx_guid_id` (`guid`,`followerId`),
-  CONSTRAINT `fk_foll_owner` FOREIGN KEY (`guid`) REFERENCES `characters` (`guid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `character_garrison_followers`
---
-
-LOCK TABLES `character_garrison_followers` WRITE;
-/*!40000 ALTER TABLE `character_garrison_followers` DISABLE KEYS */;
-/*!40000 ALTER TABLE `character_garrison_followers` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
 -- Table structure for table `character_gifts`
 --
 
@@ -1055,8 +923,9 @@ DROP TABLE IF EXISTS `character_glyphs`;
 CREATE TABLE `character_glyphs` (
   `guid` bigint unsigned NOT NULL,
   `talentGroup` tinyint unsigned NOT NULL DEFAULT '0',
+  `glyphSlot` tinyint unsigned NOT NULL DEFAULT '0',
   `glyphId` smallint unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`guid`,`talentGroup`,`glyphId`)
+  PRIMARY KEY (`guid`,`talentGroup`,`glyphSlot`,`glyphId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -1718,6 +1587,7 @@ DROP TABLE IF EXISTS `character_talent`;
 CREATE TABLE `character_talent` (
   `guid` bigint unsigned NOT NULL,
   `talentId` int unsigned NOT NULL,
+  `talentRank` tinyint unsigned NOT NULL DEFAULT '0',
   `talentGroup` tinyint unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`guid`,`talentId`,`talentGroup`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1775,6 +1645,7 @@ CREATE TABLE `character_trait_entry` (
   `traitNodeId` int NOT NULL,
   `traitNodeEntryId` int NOT NULL,
   `rank` int NOT NULL DEFAULT '0',
+  `grantedRanks` int NOT NULL DEFAULT '0',
   PRIMARY KEY (`guid`,`traitConfigId`,`traitNodeId`,`traitNodeEntryId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -1851,11 +1722,10 @@ CREATE TABLE `character_void_storage` (
   `itemEntry` int unsigned NOT NULL,
   `slot` tinyint unsigned NOT NULL,
   `creatorGuid` bigint unsigned NOT NULL DEFAULT '0',
-  `randomBonusListId` int unsigned NOT NULL DEFAULT '0',
   `fixedScalingLevel` int unsigned DEFAULT '0',
-  `artifactKnowledgeLevel` int unsigned DEFAULT '0',
+  `randomPropertiesId` int NOT NULL DEFAULT '0',
+  `randomPropertiesSeed` int NOT NULL DEFAULT '0',
   `context` tinyint unsigned NOT NULL DEFAULT '0',
-  `bonusListIDs` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`itemId`),
   UNIQUE KEY `idx_player_slot` (`playerGuid`,`slot`),
   KEY `idx_player` (`playerGuid`)
@@ -1881,7 +1751,7 @@ DROP TABLE IF EXISTS `characters`;
 CREATE TABLE `characters` (
   `guid` bigint unsigned NOT NULL DEFAULT '0' COMMENT 'Global Unique Identifier',
   `account` int unsigned NOT NULL DEFAULT '0' COMMENT 'Account Identifier',
-  `name` varchar(12) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `name` varchar(12) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `slot` tinyint unsigned NOT NULL DEFAULT '0',
   `race` tinyint unsigned NOT NULL DEFAULT '0',
   `class` tinyint unsigned NOT NULL DEFAULT '0',
@@ -1890,21 +1760,7 @@ CREATE TABLE `characters` (
   `xp` int unsigned NOT NULL DEFAULT '0',
   `money` bigint unsigned NOT NULL DEFAULT '0',
   `inventorySlots` tinyint unsigned NOT NULL DEFAULT '16',
-  `inventoryBagFlags` int unsigned NOT NULL DEFAULT '0',
-  `bagSlotFlags1` int unsigned NOT NULL DEFAULT '0',
-  `bagSlotFlags2` int unsigned NOT NULL DEFAULT '0',
-  `bagSlotFlags3` int unsigned NOT NULL DEFAULT '0',
-  `bagSlotFlags4` int unsigned NOT NULL DEFAULT '0',
-  `bagSlotFlags5` int unsigned NOT NULL DEFAULT '0',
   `bankSlots` tinyint unsigned NOT NULL DEFAULT '0',
-  `bankBagFlags` int unsigned NOT NULL DEFAULT '0',
-  `bankBagSlotFlags1` int unsigned NOT NULL DEFAULT '0',
-  `bankBagSlotFlags2` int unsigned NOT NULL DEFAULT '0',
-  `bankBagSlotFlags3` int unsigned NOT NULL DEFAULT '0',
-  `bankBagSlotFlags4` int unsigned NOT NULL DEFAULT '0',
-  `bankBagSlotFlags5` int unsigned NOT NULL DEFAULT '0',
-  `bankBagSlotFlags6` int unsigned NOT NULL DEFAULT '0',
-  `bankBagSlotFlags7` int unsigned NOT NULL DEFAULT '0',
   `restState` tinyint unsigned NOT NULL DEFAULT '0',
   `playerFlags` int unsigned NOT NULL DEFAULT '0',
   `playerFlagsEx` int unsigned NOT NULL DEFAULT '0',
@@ -1930,7 +1786,8 @@ CREATE TABLE `characters` (
   `resettalents_cost` int unsigned NOT NULL DEFAULT '0',
   `resettalents_time` bigint NOT NULL DEFAULT '0',
   `numRespecs` tinyint unsigned NOT NULL DEFAULT '0',
-  `primarySpecialization` int unsigned NOT NULL DEFAULT '0',
+  `activeTalentGroup` tinyint unsigned NOT NULL DEFAULT '0',
+  `bonusTalentGroups` tinyint unsigned NOT NULL DEFAULT '0',
   `trans_x` float NOT NULL DEFAULT '0',
   `trans_y` float NOT NULL DEFAULT '0',
   `trans_z` float NOT NULL DEFAULT '0',
@@ -1960,7 +1817,6 @@ CREATE TABLE `characters` (
   `power9` int unsigned NOT NULL DEFAULT '0',
   `power10` int unsigned NOT NULL DEFAULT '0',
   `latency` int unsigned NOT NULL DEFAULT '0',
-  `activeTalentGroup` tinyint unsigned NOT NULL DEFAULT '0',
   `lootSpecId` int unsigned NOT NULL DEFAULT '0',
   `exploredZones` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `equipmentCache` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
@@ -1980,9 +1836,9 @@ CREATE TABLE `characters` (
   `personalTabardBorderColor` int NOT NULL DEFAULT '-1',
   `personalTabardBackgroundColor` int NOT NULL DEFAULT '-1',
   PRIMARY KEY (`guid`),
-  UNIQUE KEY `idx_name` (`name`),
   KEY `idx_account` (`account`),
-  KEY `idx_online` (`online`)
+  KEY `idx_online` (`online`),
+  KEY `idx_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Player System';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -2311,7 +2167,6 @@ CREATE TABLE `groups` (
   `raidDifficulty` tinyint unsigned NOT NULL DEFAULT '14',
   `legacyRaidDifficulty` tinyint unsigned NOT NULL DEFAULT '3',
   `masterLooterGuid` bigint unsigned NOT NULL,
-  `pingRestriction` tinyint NOT NULL,
   PRIMARY KEY (`guid`),
   KEY `leaderGuid` (`leaderGuid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Groups';
@@ -2716,17 +2571,18 @@ CREATE TABLE `item_instance` (
   `charges` tinytext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `flags` int unsigned NOT NULL DEFAULT '0',
   `enchantments` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `randomBonusListId` int unsigned NOT NULL DEFAULT '0',
   `durability` smallint unsigned NOT NULL DEFAULT '0',
   `playedTime` int unsigned NOT NULL DEFAULT '0',
-  `createTime` bigint NOT NULL DEFAULT '0',
   `text` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `transmogrification` int unsigned NOT NULL DEFAULT '0',
+  `enchantIllusion` int unsigned NOT NULL DEFAULT '0',
   `battlePetSpeciesId` int unsigned NOT NULL DEFAULT '0',
   `battlePetBreedData` int unsigned NOT NULL DEFAULT '0',
   `battlePetLevel` smallint unsigned NOT NULL DEFAULT '0',
   `battlePetDisplayId` int unsigned NOT NULL DEFAULT '0',
+  `randomPropertiesId` int NOT NULL DEFAULT '0',
+  `randomPropertiesSeed` int NOT NULL DEFAULT '0',
   `context` tinyint unsigned NOT NULL DEFAULT '0',
-  `bonusListIDs` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`guid`),
   KEY `idx_owner_guid` (`owner_guid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Item System';
@@ -2742,174 +2598,6 @@ LOCK TABLES `item_instance` WRITE;
 UNLOCK TABLES;
 
 --
--- Table structure for table `item_instance_artifact`
---
-
-DROP TABLE IF EXISTS `item_instance_artifact`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `item_instance_artifact` (
-  `itemGuid` bigint unsigned NOT NULL,
-  `xp` bigint unsigned NOT NULL DEFAULT '0',
-  `artifactAppearanceId` int unsigned NOT NULL DEFAULT '0',
-  `artifactTierId` int unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`itemGuid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `item_instance_artifact`
---
-
-LOCK TABLES `item_instance_artifact` WRITE;
-/*!40000 ALTER TABLE `item_instance_artifact` DISABLE KEYS */;
-/*!40000 ALTER TABLE `item_instance_artifact` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `item_instance_artifact_powers`
---
-
-DROP TABLE IF EXISTS `item_instance_artifact_powers`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `item_instance_artifact_powers` (
-  `itemGuid` bigint unsigned NOT NULL,
-  `artifactPowerId` int unsigned NOT NULL,
-  `purchasedRank` tinyint unsigned DEFAULT '0',
-  PRIMARY KEY (`itemGuid`,`artifactPowerId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `item_instance_artifact_powers`
---
-
-LOCK TABLES `item_instance_artifact_powers` WRITE;
-/*!40000 ALTER TABLE `item_instance_artifact_powers` DISABLE KEYS */;
-/*!40000 ALTER TABLE `item_instance_artifact_powers` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `item_instance_azerite`
---
-
-DROP TABLE IF EXISTS `item_instance_azerite`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `item_instance_azerite` (
-  `itemGuid` bigint unsigned NOT NULL,
-  `xp` bigint unsigned NOT NULL DEFAULT '0',
-  `level` int unsigned NOT NULL DEFAULT '1',
-  `knowledgeLevel` int unsigned NOT NULL DEFAULT '0',
-  `selectedAzeriteEssences1specId` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences1azeriteEssenceId1` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences1azeriteEssenceId2` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences1azeriteEssenceId3` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences1azeriteEssenceId4` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences2specId` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences2azeriteEssenceId1` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences2azeriteEssenceId2` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences2azeriteEssenceId3` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences2azeriteEssenceId4` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences3specId` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences3azeriteEssenceId1` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences3azeriteEssenceId2` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences3azeriteEssenceId3` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences3azeriteEssenceId4` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences4specId` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences4azeriteEssenceId1` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences4azeriteEssenceId2` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences4azeriteEssenceId3` int unsigned DEFAULT '0',
-  `selectedAzeriteEssences4azeriteEssenceId4` int unsigned DEFAULT '0',
-  PRIMARY KEY (`itemGuid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `item_instance_azerite`
---
-
-LOCK TABLES `item_instance_azerite` WRITE;
-/*!40000 ALTER TABLE `item_instance_azerite` DISABLE KEYS */;
-/*!40000 ALTER TABLE `item_instance_azerite` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `item_instance_azerite_empowered`
---
-
-DROP TABLE IF EXISTS `item_instance_azerite_empowered`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `item_instance_azerite_empowered` (
-  `itemGuid` bigint unsigned NOT NULL,
-  `azeritePowerId1` int NOT NULL,
-  `azeritePowerId2` int NOT NULL,
-  `azeritePowerId3` int NOT NULL,
-  `azeritePowerId4` int NOT NULL,
-  `azeritePowerId5` int NOT NULL,
-  PRIMARY KEY (`itemGuid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `item_instance_azerite_empowered`
---
-
-LOCK TABLES `item_instance_azerite_empowered` WRITE;
-/*!40000 ALTER TABLE `item_instance_azerite_empowered` DISABLE KEYS */;
-/*!40000 ALTER TABLE `item_instance_azerite_empowered` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `item_instance_azerite_milestone_power`
---
-
-DROP TABLE IF EXISTS `item_instance_azerite_milestone_power`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `item_instance_azerite_milestone_power` (
-  `itemGuid` bigint unsigned NOT NULL,
-  `azeriteItemMilestonePowerId` int unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`itemGuid`,`azeriteItemMilestonePowerId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `item_instance_azerite_milestone_power`
---
-
-LOCK TABLES `item_instance_azerite_milestone_power` WRITE;
-/*!40000 ALTER TABLE `item_instance_azerite_milestone_power` DISABLE KEYS */;
-/*!40000 ALTER TABLE `item_instance_azerite_milestone_power` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `item_instance_azerite_unlocked_essence`
---
-
-DROP TABLE IF EXISTS `item_instance_azerite_unlocked_essence`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `item_instance_azerite_unlocked_essence` (
-  `itemGuid` bigint unsigned NOT NULL,
-  `azeriteEssenceId` int unsigned NOT NULL DEFAULT '0',
-  `rank` int unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`itemGuid`,`azeriteEssenceId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `item_instance_azerite_unlocked_essence`
---
-
-LOCK TABLES `item_instance_azerite_unlocked_essence` WRITE;
-/*!40000 ALTER TABLE `item_instance_azerite_unlocked_essence` DISABLE KEYS */;
-/*!40000 ALTER TABLE `item_instance_azerite_unlocked_essence` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
 -- Table structure for table `item_instance_gems`
 --
 
@@ -2921,15 +2609,12 @@ CREATE TABLE `item_instance_gems` (
   `gemItemId1` int unsigned NOT NULL DEFAULT '0',
   `gemBonuses1` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `gemContext1` tinyint unsigned NOT NULL DEFAULT '0',
-  `gemScalingLevel1` int unsigned NOT NULL DEFAULT '0',
   `gemItemId2` int unsigned NOT NULL DEFAULT '0',
   `gemBonuses2` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `gemContext2` tinyint unsigned NOT NULL DEFAULT '0',
-  `gemScalingLevel2` int unsigned NOT NULL DEFAULT '0',
   `gemItemId3` int unsigned NOT NULL DEFAULT '0',
   `gemBonuses3` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `gemContext3` tinyint unsigned NOT NULL DEFAULT '0',
-  `gemScalingLevel3` int unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`itemGuid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -2941,30 +2626,6 @@ CREATE TABLE `item_instance_gems` (
 LOCK TABLES `item_instance_gems` WRITE;
 /*!40000 ALTER TABLE `item_instance_gems` DISABLE KEYS */;
 /*!40000 ALTER TABLE `item_instance_gems` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `item_instance_modifiers`
---
-
-DROP TABLE IF EXISTS `item_instance_modifiers`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `item_instance_modifiers` (
-  `itemGuid` bigint unsigned NOT NULL,
-  `fixedScalingLevel` int unsigned DEFAULT '0',
-  `artifactKnowledgeLevel` int unsigned DEFAULT '0',
-  PRIMARY KEY (`itemGuid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `item_instance_modifiers`
---
-
-LOCK TABLES `item_instance_modifiers` WRITE;
-/*!40000 ALTER TABLE `item_instance_modifiers` DISABLE KEYS */;
-/*!40000 ALTER TABLE `item_instance_modifiers` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -3016,7 +2677,6 @@ DROP TABLE IF EXISTS `item_loot_items`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `item_loot_items` (
   `container_id` bigint unsigned NOT NULL DEFAULT '0' COMMENT 'guid of container (item_instance.guid)',
-  `item_type` tinyint NOT NULL DEFAULT '0' COMMENT 'item or currency',
   `item_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'loot item entry (item_instance.itemEntry)',
   `item_count` int NOT NULL DEFAULT '0' COMMENT 'stack size',
   `item_index` int unsigned NOT NULL DEFAULT '0',
@@ -3026,10 +2686,10 @@ CREATE TABLE `item_loot_items` (
   `counted` tinyint(1) NOT NULL DEFAULT '0',
   `under_threshold` tinyint(1) NOT NULL DEFAULT '0',
   `needs_quest` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'quest drop',
-  `rnd_bonus` int unsigned NOT NULL DEFAULT '0' COMMENT 'random bonus list added when originally rolled',
+  `random_properties_id` int NOT NULL DEFAULT '0',
+  `random_properties_seed` int NOT NULL DEFAULT '0',
   `context` tinyint unsigned NOT NULL DEFAULT '0',
-  `bonus_list_ids` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Space separated list of bonus list ids',
-  PRIMARY KEY (`container_id`,`item_type`,`item_id`)
+  PRIMARY KEY (`container_id`,`item_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -3737,19 +3397,17 @@ INSERT INTO `updates` VALUES
 ('2023_10_06_00_characters.sql','FFAFF1F0916BB9DC58345466E0BB1A15A4611836','ARCHIVED','2023-10-06 00:40:46',0),
 ('2023_11_02_00_characters.sql','1A76A843F204901C8598DA5682029E815477E427','ARCHIVED','2023-11-02 18:59:41',0),
 ('2023_11_09_00_characters.sql','1A3D7CA6890353DA55793FE8D925CC8C54965A69','ARCHIVED','2023-11-09 00:56:31',0),
-('2023_11_15_00_characters.sql','441E0F17DE3E3945307AC400DF86FCDF06C61653','ARCHIVED','2023-11-15 00:53:47',0),
-('2024_02_08_00_characters.sql','743A11042AA17CDBD5F3D510D24509A10838DB5A','ARCHIVED','2024-02-08 00:56:26',0),
-('2024_04_09_00_characters.sql','07AC79B4E489B1CD073852EC57D12939C2A1D4B1','ARCHIVED','2024-04-09 12:54:11',0),
-('2024_04_12_00_characters.sql','043E023F998DA77170C9D2D0162CAA340290B215','ARCHIVED','2024-04-12 00:23:51',0),
-('2024_04_28_00_characters.sql','F80F476704BE535B5DCB0BCEBDD56024FCFBBAA2','ARCHIVED','2024-04-28 19:26:58',0),
-('2024_05_11_00_characters.sql','A65765D87C1BA181561A6517040DC1A3A8103B71','ARCHIVED','2024-05-11 03:06:52',0),
-('2024_07_31_00_characters.sql','F7E7AE0B8077CB9A1EA0AE4F49693BB05A742AC3','ARCHIVED','2024-07-31 16:18:36',0),
-('2024_08_04_00_characters.sql','7D153C59998416E6EA1455086730A2321AD0F2A8','ARCHIVED','2024-08-04 17:58:59',0),
-('2024_08_05_00_characters.sql','7E4AE28F9EC370A1B22DBD8DD718EE027A321F33','ARCHIVED','2024-08-05 11:19:40',0),
-('2024_08_26_00_characters.sql','68EEBE1D639D59B24F5121008C2D103CA67FFC9A','ARCHIVED','2024-08-26 00:49:08',0),
-('2024_09_03_00_characters.sql','71ECC73A3F324EB64DA19B0CC4DF72A85E022BDC','ARCHIVED','2024-09-03 00:47:42',0),
-('2024_09_23_00_characters.sql','D8491BCEE728F40D55D47E3A4BC5A5F083EBD02E','ARCHIVED','2024-09-23 22:48:10',0),
-('2024_10_03_00_characters.sql','408249A6992999A36EB94089D184972E8E0767A3','RELEASED','2024-10-03 11:10:18',0);
+('2023_11_16_00_characters.sql','1D200630578074A4E3A373F891323DB867D00B02','ARCHIVED','2023-11-16 10:29:32',0),
+('2023_11_19_00_characters.sql','F247770A7F116070ABF13E4A61BB8E1693052548','ARCHIVED','2023-11-19 13:43:39',0),
+('2023_11_20_00_characters.sql','274C157F28DE1DC13F689755793AA2DE675CCC7F','ARCHIVED','2023-11-20 02:36:26',0),
+('2023_11_21_00_characters.sql','127057D4EFEB5DC63ECB877C1043B4AE996F11FA','ARCHIVED','2023-11-21 02:36:26',0),
+('2023_11_22_00_characters.sql','DEDDD2774AE3788C45F459B200EE446AD1C7AEE8','ARCHIVED','2023-11-22 02:36:26',0),
+('2023_11_23_00_characters.sql','4916DECE5A49D23B1DCFA27A713B250BE2A7225A','ARCHIVED','2023-11-23 21:05:48',0),
+('2023_11_25_00_characters.sql','76CE77D4B1625CE384B01295F4D3FFC16A7F696C','ARCHIVED','2023-11-25 12:33:10',0),
+('2023_11_27_00_characters.sql','A0CEE90B60612AA7315117FAFF22D14163D4ADF2','ARCHIVED','2023-11-27 12:33:10',0),
+('2023_12_03_00_characters.sql','C91A51EA86C26F3AB60445FE147B0E4B220716A0','ARCHIVED','2023-12-03 22:16:45',0),
+('2023_12_20_00_characters.sql','A474833AC43F14B52A6C386673E49E06CFE2A5F0','ARCHIVED','2023-12-20 21:51:28',0),
+('2024_08_17_00_characters.sql','2CEFCBDBA81B9BF6A5C95D79D6BAA183F340EE8C','ARCHIVED','2024-08-17 22:00:10',0);
 /*!40000 ALTER TABLE `updates` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -3776,7 +3434,7 @@ LOCK TABLES `updates_include` WRITE;
 INSERT INTO `updates_include` VALUES
 ('$/sql/custom/characters','RELEASED'),
 ('$/sql/old/10.x/characters','ARCHIVED'),
-('$/sql/old/11.x/characters','ARCHIVED'),
+('$/sql/old/3.4.x/characters','ARCHIVED'),
 ('$/sql/old/6.x/characters','ARCHIVED'),
 ('$/sql/old/7/characters','ARCHIVED'),
 ('$/sql/old/8.x/characters','ARCHIVED'),
@@ -3877,4 +3535,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2024-09-23 22:48:12
+-- Dump completed on 2024-08-17 22:00:12

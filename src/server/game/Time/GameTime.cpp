@@ -68,13 +68,13 @@ namespace GameTime
     }
 
     template<>
-    SystemTimePoint GetTime<std::chrono::system_clock>()
+    TC_GAME_API SystemTimePoint GetTime<std::chrono::system_clock>()
     {
         return GetSystemTime();
     }
 
     template<>
-    TimePoint GetTime<std::chrono::steady_clock>()
+    TC_GAME_API TimePoint GetTime<std::chrono::steady_clock>()
     {
         return Now();
     }

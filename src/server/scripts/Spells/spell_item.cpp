@@ -3081,6 +3081,9 @@ class spell_item_rocket_boots : public SpellScript
     void HandleDummy(SpellEffIndex /* effIndex */)
     {
         Player* caster = GetCaster()->ToPlayer();
+        if (Battleground* bg = caster->GetBattleground())
+            bg->EventPlayerDroppedFlag(caster);
+
         caster->GetSpellHistory()->ResetCooldown(SPELL_ROCKET_BOOTS_PROC);
         caster->CastSpell(caster, SPELL_ROCKET_BOOTS_PROC, true);
     }
@@ -3933,54 +3936,6 @@ class spell_item_zandalarian_charm : public SpellScriptLoader
         uint32 _spellId;
 };
 
-class spell_item_artifical_stamina : public AuraScript
-{
-    bool Validate(SpellInfo const* spellInfo) override
-    {
-        return ValidateSpellEffect({ { spellInfo->Id, EFFECT_1 } });
-    }
-
-    bool Load() override
-    {
-        return GetOwner()->GetTypeId() == TYPEID_PLAYER;
-    }
-
-    void CalculateAmount(AuraEffect const* /*aurEff*/, int32& amount, bool& /*canBeRecalculated*/)
-    {
-        if (Item* artifact = GetOwner()->ToPlayer()->GetItemByGuid(GetAura()->GetCastItemGUID()))
-            amount = GetEffectInfo(EFFECT_1).BasePoints * artifact->GetTotalPurchasedArtifactPowers() / 100;
-    }
-
-    void Register() override
-    {
-        DoEffectCalcAmount += AuraEffectCalcAmountFn(spell_item_artifical_stamina::CalculateAmount, EFFECT_0, SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE);
-    }
-};
-
-class spell_item_artifical_damage : public AuraScript
-{
-    bool Validate(SpellInfo const* spellInfo) override
-    {
-        return ValidateSpellEffect({ { spellInfo->Id, EFFECT_1 } });
-    }
-
-    bool Load() override
-    {
-        return GetOwner()->GetTypeId() == TYPEID_PLAYER;
-    }
-
-    void CalculateAmount(AuraEffect const* /*aurEff*/, int32& amount, bool& /*canBeRecalculated*/)
-    {
-        if (Item* artifact = GetOwner()->ToPlayer()->GetItemByGuid(GetAura()->GetCastItemGUID()))
-            amount = GetSpellInfo()->GetEffect(EFFECT_1).BasePoints * artifact->GetTotalPurchasedArtifactPowers() / 100;
-    }
-
-    void Register() override
-    {
-        DoEffectCalcAmount += AuraEffectCalcAmountFn(spell_item_artifical_damage::CalculateAmount, EFFECT_0, SPELL_AURA_MOD_DAMAGE_PERCENT_DONE);
-    }
-};
-
 enum AuraProcRemoveSpells
 {
     SPELL_TALISMAN_OF_ASCENDANCE    = 28200,
@@ -4308,7 +4263,6 @@ enum AmalgamsSeventhSpine
     SPELL_FRAGILE_ECHOES_PALADIN            = 225297,
     SPELL_FRAGILE_ECHOES_DRUID              = 225298,
     SPELL_FRAGILE_ECHOES_PRIEST_HOLY        = 225366,
-    SPELL_FRAGILE_ECHOES_EVOKER             = 429020,
     SPELL_FRAGILE_ECHO_ENERGIZE             = 215270,
 };
 
@@ -4317,30 +4271,36 @@ class spell_item_amalgams_seventh_spine : public AuraScript
 {
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
-        return ValidateSpellInfo
-        ({
+        return ValidateSpellInfo({
             SPELL_FRAGILE_ECHOES_MONK,
             SPELL_FRAGILE_ECHOES_SHAMAN,
             SPELL_FRAGILE_ECHOES_PRIEST_DISCIPLINE,
             SPELL_FRAGILE_ECHOES_PALADIN,
             SPELL_FRAGILE_ECHOES_DRUID,
-            SPELL_FRAGILE_ECHOES_PRIEST_HOLY,
-            SPELL_FRAGILE_ECHOES_EVOKER
+            SPELL_FRAGILE_ECHOES_PRIEST_HOLY
         });
     }
 
-    void UpdateSpecAura(bool apply) const
+    void ForcePeriodic(AuraEffect const* /*aurEff*/, bool& isPeriodic, int32& amplitude)
     {
-        Player* target = GetUnitOwner()->ToPlayer();
+        // simulate heartbeat timer
+        isPeriodic = true;
+        amplitude = 5000;
+    }
+
+    void UpdateSpecAura(AuraEffect const* aurEff)
+    {
+        PreventDefaultAction();
+        Player* target = GetTarget()->ToPlayer();
         if (!target)
             return;
 
         auto updateAuraIfInCorrectSpec = [&](ChrSpecialization spec, AmalgamsSeventhSpine aura)
         {
-            if (!apply || target->GetPrimarySpecialization() != spec)
+            if (target->GetPrimarySpecialization() != spec)
                 target->RemoveAurasDueToSpell(aura);
             else if (!target->HasAura(aura))
-                target->CastSpell(target, aura, GetEffect(EFFECT_0));
+                target->CastSpell(target, aura, aurEff);
         };
 
         switch (target->GetClass())
@@ -4361,28 +4321,15 @@ class spell_item_amalgams_seventh_spine : public AuraScript
             case CLASS_DRUID:
                 updateAuraIfInCorrectSpec(ChrSpecialization::DruidRestoration, SPELL_FRAGILE_ECHOES_DRUID);
                 break;
-            case CLASS_EVOKER:
-                updateAuraIfInCorrectSpec(ChrSpecialization::EvokerPreservation, SPELL_FRAGILE_ECHOES_EVOKER);
-                break;
             default:
                 break;
         }
     }
 
-    void HandleHeartbeat() const
-    {
-        UpdateSpecAura(true);
-    }
-
-    void HandleRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/) const
-    {
-        UpdateSpecAura(false);
-    }
-
     void Register() override
     {
-        OnHeartbeat += AuraHeartbeatFn(spell_item_amalgams_seventh_spine::HandleHeartbeat);
-        AfterEffectRemove += AuraEffectRemoveFn(spell_item_amalgams_seventh_spine::HandleRemove, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
+        DoEffectCalcPeriodic += AuraEffectCalcPeriodicFn(spell_item_amalgams_seventh_spine::ForcePeriodic, EFFECT_0, SPELL_AURA_DUMMY);
+        OnEffectPeriodic += AuraEffectPeriodicFn(spell_item_amalgams_seventh_spine::UpdateSpecAura, EFFECT_0, SPELL_AURA_DUMMY);
     }
 };
 
@@ -4394,7 +4341,7 @@ class spell_item_amalgams_seventh_spine_mana_restore : public AuraScript
         return ValidateSpellInfo({ SPELL_FRAGILE_ECHO_ENERGIZE });
     }
 
-    void TriggerManaRestoration(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/) const
+    void TriggerManaRestoration(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/)
     {
         if (GetTargetApplication()->GetRemoveMode() != AURA_REMOVE_BY_EXPIRE)
             return;
@@ -4746,8 +4693,6 @@ void AddSC_item_spell_scripts()
     RegisterSpellScript(spell_item_frozen_shadoweave);
     RegisterSpellScript(spell_item_gnomish_death_ray);
     RegisterSpellScript(spell_item_harm_prevention_belt);
-    RegisterSpellScriptWithArgs((spell_item_heartpierce<SPELL_INVIGORATION_ENERGY, SPELL_INVIGORATION_MANA, SPELL_INVIGORATION_RAGE, SPELL_INVIGORATION_RP>), "spell_item_heartpierce");
-    RegisterSpellScriptWithArgs((spell_item_heartpierce<SPELL_INVIGORATION_ENERGY_HERO, SPELL_INVIGORATION_MANA_HERO, SPELL_INVIGORATION_RAGE_HERO, SPELL_INVIGORATION_RP_HERO>), "spell_item_heartpierce_hero");
     RegisterSpellScript(spell_item_hourglass_sand);
     RegisterSpellScript(spell_item_crystal_spire_of_karabor);
     RegisterSpellScript(spell_item_make_a_wish);
@@ -4824,8 +4769,6 @@ void AddSC_item_spell_scripts()
     RegisterSpellScript(spell_item_universal_remote);
     new spell_item_zandalarian_charm("spell_item_unstable_power", SPELL_UNSTABLE_POWER_AURA_STACK);
     new spell_item_zandalarian_charm("spell_item_restless_strength", SPELL_RESTLESS_STRENGTH_AURA_STACK);
-    RegisterSpellScript(spell_item_artifical_stamina);
-    RegisterSpellScript(spell_item_artifical_damage);
     RegisterSpellScript(spell_item_talisman_of_ascendance);
     RegisterSpellScript(spell_item_battle_trance);
     RegisterSpellScript(spell_item_world_queller_focus);

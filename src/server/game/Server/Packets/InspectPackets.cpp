@@ -16,7 +16,6 @@
  */
 
 #include "InspectPackets.h"
-#include "AzeriteItem.h"
 #include "Item.h"
 #include "Player.h"
 
@@ -181,28 +180,6 @@ InspectItemData::InspectItemData(::Item const* item, uint8 index)
         }
         ++i;
     }
-
-    if (AzeriteItem const* azeriteItem = item->ToAzeriteItem())
-    {
-        if (UF::SelectedAzeriteEssences const* essences = azeriteItem->GetSelectedAzeriteEssences())
-        {
-            for (uint8 slot = 0; slot < essences->AzeriteEssenceID.size(); ++slot)
-            {
-                AzeriteEssences.emplace_back();
-
-                AzeriteEssenceData& essence = AzeriteEssences.back();
-                essence.Index = slot;
-                essence.AzeriteEssenceID = essences->AzeriteEssenceID[slot];
-                if (essence.AzeriteEssenceID)
-                {
-                    essence.Rank = azeriteItem->GetEssenceRank(essence.AzeriteEssenceID);
-                    essence.SlotUnlocked = true;
-                }
-                else
-                    essence.SlotUnlocked = azeriteItem->HasUnlockedEssenceSlot(slot);
-            }
-        }
-    }
 }
 
 WorldPacket const* InspectResult::Write()
@@ -210,7 +187,6 @@ WorldPacket const* InspectResult::Write()
     _worldPacket << DisplayInfo;
     _worldPacket << uint32(Glyphs.size());
     _worldPacket << uint32(Talents.size());
-    _worldPacket << uint32(PvpTalents.size());
     _worldPacket << int32(ItemLevel);
     _worldPacket << uint8(LifetimeMaxRank);
     _worldPacket << uint16(TodayHK);
@@ -221,8 +197,6 @@ WorldPacket const* InspectResult::Write()
         _worldPacket.append(Glyphs.data(), Glyphs.size());
     if (!Talents.empty())
         _worldPacket.append(Talents.data(), Talents.size());
-    if (!PvpTalents.empty())
-        _worldPacket.append(PvpTalents.data(), PvpTalents.size());
 
     _worldPacket.WriteBit(GuildData.has_value());
     _worldPacket.WriteBit(AzeriteLevel.has_value());

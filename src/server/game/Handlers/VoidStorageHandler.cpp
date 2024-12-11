@@ -108,7 +108,21 @@ void WorldSession::HandleVoidStorageTransfer(WorldPackets::VoidStorage::VoidStor
         return;
     }
 
-    if (!voidStorageTransfer.Withdrawals.empty() && voidStorageTransfer.Withdrawals.size() > _player->GetFreeInventorySlotCount(ItemSearchLocation::Inventory))
+    uint32 freeBagSlots = 0;
+    if (!voidStorageTransfer.Withdrawals.empty())
+    {
+        // make this a Player function
+        for (uint8 i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; i++)
+            if (Bag* bag = _player->GetBagByPos(i))
+                freeBagSlots += bag->GetFreeSlots();
+
+        uint8 inventoryEnd = INVENTORY_SLOT_ITEM_START + _player->GetInventorySlotCount();
+        for (uint8 i = INVENTORY_SLOT_ITEM_START; i < inventoryEnd; i++)
+            if (!_player->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
+                ++freeBagSlots;
+    }
+
+    if (voidStorageTransfer.Withdrawals.size() > freeBagSlots)
     {
         SendVoidStorageTransferResult(VOID_TRANSFER_ERROR_INVENTORY_FULL);
         return;
@@ -134,9 +148,8 @@ void WorldSession::HandleVoidStorageTransfer(WorldPackets::VoidStorage::VoidStor
             continue;
         }
 
-        VoidStorageItem itemVS(sObjectMgr->GenerateVoidStorageItemId(), item->GetEntry(), item->GetCreator(),
-            item->GetItemRandomBonusListId(), item->GetModifier(ITEM_MODIFIER_TIMEWALKER_LEVEL), item->GetModifier(ITEM_MODIFIER_ARTIFACT_KNOWLEDGE_LEVEL),
-            item->GetContext(), item->GetBonusListIDs());
+        VoidStorageItem itemVS(sObjectMgr->GenerateVoidStorageItemId(), item->GetEntry(), item->GetCreator(), item->GetModifier(ITEM_MODIFIER_TIMEWALKER_LEVEL),
+            ItemRandomProperties(item->m_itemData->RandomPropertiesID, item->m_itemData->PropertySeed), item->GetContext());
 
         WorldPackets::VoidStorage::VoidItem voidItem;
         voidItem.Guid = ObjectGuid::Create<HighGuid::Item>(itemVS.ItemId);
@@ -173,7 +186,7 @@ void WorldSession::HandleVoidStorageTransfer(WorldPackets::VoidStorage::VoidStor
             return;
         }
 
-        if (Item* item = _player->StoreNewItem(dest, itemVS->ItemEntry, true, itemVS->RandomBonusListId, GuidSet(), itemVS->Context, &itemVS->BonusListIDs))
+        if (Item* item = _player->StoreNewItem(dest, itemVS->ItemEntry, true, itemVS->RandomProperties, GuidSet(), itemVS->Context))
         {
             item->SetCreator(itemVS->CreatorGuid);
             item->SetBinding(true);

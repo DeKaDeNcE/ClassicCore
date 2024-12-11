@@ -1,8 +1,7 @@
 # output generic information about the core and buildtype chosen
 message("")
 message("* TrinityCore revision   : ${rev_hash} ${rev_date} (${rev_branch} branch)")
-get_property(IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
-if(NOT IS_MULTI_CONFIG)
+if(UNIX)
   message("* TrinityCore buildtype  : ${CMAKE_BUILD_TYPE}")
 endif()
 message("")
@@ -61,13 +60,7 @@ endif()
 if(WITH_WARNINGS)
   message("* Show all warnings      : Yes")
 else()
-  message("* Show all warnings      : No  (default)")
-endif()
-
-if(WITH_WARNINGS_AS_ERRORS)
-  message("* Stop build on warning  : Yes")
-else()
-  message("* Stop build on warning  : No  (default)")
+  message("* Show compile-warnings  : No  (default)")
 endif()
 
 if(WITH_COREDEBUG)
@@ -79,9 +72,7 @@ if(WITH_COREDEBUG)
   message(" *** -DCMAKE_BUILD_TYPE=RelWithDebInfo")
   message(" *** DO NOT ENABLE IT UNLESS YOU KNOW WHAT YOU'RE DOING!")
   message("* Use coreside debug     : Yes")
-  target_compile_definitions(trinity-compile-option-interface
-    INTERFACE
-      TRINITY_DEBUG)
+  add_definitions(-DTRINITY_DEBUG)
 else()
   message("* Use coreside debug     : No  (default)")
 endif()
@@ -120,70 +111,60 @@ if(HELGRIND)
   message(" *** HELGRIND - WARNING!")
   message(" *** Please specify the valgrind include directory in VALGRIND_INCLUDE_DIR option if you get build errors")
   message(" *** Please note that this is for DEBUGGING WITH HELGRIND only!")
-  target_compile_definitions(trinity-compile-option-interface
-    INTERFACE
-      HELGRIND)
+  add_definitions(-DHELGRIND)
 endif()
 
 if(ASAN)
   message("")
   message(" *** ASAN - WARNING!")
   message(" *** Please note that this is for DEBUGGING WITH ADDRESS SANITIZER only!")
-  target_compile_definitions(trinity-compile-option-interface
-    INTERFACE
-      ASAN)
+  add_definitions(-DASAN)
 endif()
 
 if(MSAN)
   message("")
   message(" *** MSAN - WARNING!")
   message(" *** Please note that this is for DEBUGGING WITH MEMORY SANITIZER only!")
-  target_compile_definitions(trinity-compile-option-interface
-    INTERFACE
-      MSAN)
+  add_definitions(-DMSAN)
 endif()
 
 if(UBSAN)
   message("")
   message(" *** UBSAN - WARNING!")
   message(" *** Please note that this is for DEBUGGING WITH UNDEFINED BEHAVIOR SANITIZER only!")
-  target_compile_definitions(trinity-compile-option-interface
-    INTERFACE
-      UBSAN)
+  add_definitions(-DUBSAN)
 endif()
 
 if(TSAN)
   message("")
   message(" *** TSAN - WARNING!")
   message(" *** Please note that this is for DEBUGGING WITH THREAD SANITIZER only!")
-  target_compile_definitions(trinity-compile-option-interface
-    INTERFACE
-      TSAN)
+  add_definitions(-DTSAN -DNO_BUFFERPOOL)
 endif()
 
 if(PERFORMANCE_PROFILING)
   message("")
   message(" *** PERFORMANCE_PROFILING - WARNING!")
   message(" *** Please note that this is for PERFORMANCE PROFILING only! Do NOT report any issue when enabling this configuration!")
-  target_compile_definitions(trinity-compile-option-interface
-    INTERFACE
-      PERFORMANCE_PROFILING)
+  add_definitions(-DPERFORMANCE_PROFILING)
 endif()
 
 if(WITHOUT_METRICS)
   message("")
   message(" *** WITHOUT_METRICS - WARNING!")
   message(" *** Please note that this will disable all metrics output (i.e. InfluxDB and Grafana)")
-  target_compile_definitions(trinity-compile-option-interface
-    INTERFACE
-      WITHOUT_METRICS)
+  add_definitions(-DWITHOUT_METRICS)
 elseif (WITH_DETAILED_METRICS)
   message("")
   message(" *** WITH_DETAILED_METRICS - WARNING!")
   message(" *** Please note that this will enable detailed metrics output (i.e. time each session takes to update)")
-  target_compile_definitions(trinity-compile-option-interface
-    INTERFACE
-      WITH_DETAILED_METRICS)
+  add_definitions(-DWITH_DETAILED_METRICS)
+endif()
+
+if(WITH_BOOST_STACKTRACE)
+  if (BOOST_STACKTRACE_BACKTRACE_INCLUDE_FILE)
+    add_definitions(-DBOOST_STACKTRACE_BACKTRACE_INCLUDE_FILE="${BOOST_STACKTRACE_BACKTRACE_INCLUDE_FILE}")
+  endif()
 endif()
 
 if(BUILD_SHARED_LIBS)
@@ -195,9 +176,7 @@ if(BUILD_SHARED_LIBS)
     message("")
     message(" *** Dynamic linking was enforced through a dynamic script module!")
   endif()
-  target_compile_definitions(trinity-compile-option-interface
-    INTERFACE
-      TRINITY_API_USE_DYNAMIC_LINKING)
+  add_definitions(-DTRINITY_API_USE_DYNAMIC_LINKING)
 
   WarnAboutSpacesInBuildPath()
 endif()

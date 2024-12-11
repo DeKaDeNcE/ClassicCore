@@ -54,14 +54,12 @@
 #include "GameObjectModel.h"
 #include "GameTables.h"
 #include "GameTime.h"
-#include "GarrisonMgr.h"
 #include "GitRevision.h"
 #include "GridNotifiersImpl.h"
 #include "GroupMgr.h"
 #include "GuildMgr.h"
 #include "IPLocation.h"
 #include "InstanceLockMgr.h"
-#include "ItemBonusMgr.h"
 #include "LFGMgr.h"
 #include "Language.h"
 #include "LanguageMgr.h"
@@ -82,7 +80,7 @@
 #include "PlayerDump.h"
 #include "PoolMgr.h"
 #include "QuestPools.h"
-#include "RealmList.h"
+#include "Realm.h"
 #include "ScenarioMgr.h"
 #include "ScriptMgr.h"
 #include "ScriptReloadMgr.h"
@@ -245,8 +243,12 @@ void World::SetClosed(bool val)
 
 void World::LoadDBAllowedSecurityLevel()
 {
-    if (std::shared_ptr<Realm const> currentRealm = sRealmList->GetCurrentRealm())
-        SetPlayerSecurityLimit(currentRealm->AllowedSecurityLevel);
+    LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_SEL_REALMLIST_SECURITY_LEVEL);
+    stmt->setInt32(0, int32(realm.Id.Realm));
+    PreparedQueryResult result = LoginDatabase.Query(stmt);
+
+    if (result)
+        SetPlayerSecurityLimit(AccountTypes(result->Fetch()->GetUInt8()));
 }
 
 void World::SetPlayerSecurityLimit(AccountTypes _sec)
@@ -426,12 +428,7 @@ void World::AddSession_(WorldSession* s)
     {
         float popu = (float)GetActiveSessionCount();              // updated number of users on the server
         popu /= pLimit;
-
-        LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_REALM_POPULATION);
-        stmt->setFloat(0, popu);
-        stmt->setUInt32(1, sRealmList->GetCurrentRealmId().Realm);
-        LoginDatabase.Execute(stmt);
-
+        popu *= 2;
         TC_LOG_INFO("misc", "Server Population ({}).", popu);
     }
 }
@@ -1013,7 +1010,7 @@ void World::LoadConfigSettings(bool reload)
         m_int_configs[CONFIG_START_PLAYER_LEVEL] = m_int_configs[CONFIG_MAX_PLAYER_LEVEL];
     }
 
-    m_int_configs[CONFIG_START_DEATH_KNIGHT_PLAYER_LEVEL] = sConfigMgr->GetIntDefault("StartDeathKnightPlayerLevel", 8);
+    m_int_configs[CONFIG_START_DEATH_KNIGHT_PLAYER_LEVEL] = sConfigMgr->GetIntDefault("StartDeathKnightPlayerLevel", 55);
     if (m_int_configs[CONFIG_START_DEATH_KNIGHT_PLAYER_LEVEL] < 1)
     {
         TC_LOG_ERROR("server.loading", "StartDeathKnightPlayerLevel ({}) must be in range 1..MaxPlayerLevel({}). Set to 1.",
@@ -1041,7 +1038,7 @@ void World::LoadConfigSettings(bool reload)
         m_int_configs[CONFIG_START_DEMON_HUNTER_PLAYER_LEVEL] = m_int_configs[CONFIG_MAX_PLAYER_LEVEL];
     }
 
-    m_int_configs[CONFIG_START_EVOKER_PLAYER_LEVEL] = sConfigMgr->GetIntDefault("StartEvokerPlayerLevel", 10);
+    m_int_configs[CONFIG_START_EVOKER_PLAYER_LEVEL] = sConfigMgr->GetIntDefault("StartEvokerPlayerLevel", 58);
     if (m_int_configs[CONFIG_START_EVOKER_PLAYER_LEVEL] < 1)
     {
         TC_LOG_ERROR("server.loading", "StartEvokerPlayerLevel ({}) must be in range 1..MaxPlayerLevel({}). Set to 1.",
@@ -1519,6 +1516,9 @@ void World::LoadConfigSettings(bool reload)
     _guidWarningMsg = sConfigMgr->GetStringDefault("Respawn.WarningMessage", "There will be an unscheduled server restart at 03:00. The server will be available again shortly after.");
     _alertRestartReason = sConfigMgr->GetStringDefault("Respawn.AlertRestartReason", "Urgent Maintenance");
     m_int_configs[CONFIG_RESPAWN_GUIDWARNING_FREQUENCY] = sConfigMgr->GetIntDefault("Respawn.WarningFrequency", 1800);
+
+    m_bool_configs[CONFIG_ENABLE_AE_LOOT] = sConfigMgr->GetBoolDefault("EnableAELoot", false);
+
     ///- Read the "Data" directory from the config file
     std::string dataPath = sConfigMgr->GetStringDefault("DataDir", "./");
     if (dataPath.empty() || (dataPath.at(dataPath.length()-1) != '/' && dataPath.at(dataPath.length()-1) != '\\'))
@@ -1722,21 +1722,15 @@ void World::LoadConfigSettings(bool reload)
     // Specifies if IP addresses can be logged to the database
     m_bool_configs[CONFIG_ALLOW_LOGGING_IP_ADDRESSES_IN_DATABASE] = sConfigMgr->GetBoolDefault("AllowLoggingIPAddressesInDatabase", true, true);
 
-    // Enable AE loot
-    m_bool_configs[CONFIG_ENABLE_AE_LOOT] = sConfigMgr->GetBoolDefault("Loot.EnableAELoot", true);
-
-    // Loading of Locales
-    m_bool_configs[CONFIG_LOAD_LOCALES] = sConfigMgr->GetBoolDefault("Load.Locales", true);
-
     // call ScriptMgr if we're reloading the configuration
     if (reload)
         sScriptMgr->OnConfigLoad(reload);
 }
 
 /// Initialize the World
-bool World::SetInitialWorldSettings()
+void World::SetInitialWorldSettings()
 {
-    sLog->SetRealmId(sRealmList->GetCurrentRealmId().Realm);
+    sLog->SetRealmId(realm.Id.Realm);
 
     ///- Server startup begin
     uint32 startupBegin = getMSTime();
@@ -1773,7 +1767,7 @@ bool World::SetInitialWorldSettings()
             !TerrainMgr::ExistMapAndVMap(530, -3961.64f, -13931.2f))))
     {
         TC_LOG_FATAL("server.loading", "Unable to load map and vmap data for starting zones - server shutting down!");
-        return false;
+        exit(1);
     }
 
     ///- Initialize pool manager
@@ -1786,7 +1780,7 @@ bool World::SetInitialWorldSettings()
 
     TC_LOG_INFO("server.loading", "Loading Trinity strings...");
     if (!sObjectMgr->LoadTrinityStrings())
-        return false;                                       // Error message displayed in function already
+        exit(1);                                            // Error message displayed in function already
 
     ///- Update the realm entry in the database with the realm type from the config file
     //No SQL injection as values are treated as integers
@@ -1795,7 +1789,7 @@ bool World::SetInitialWorldSettings()
     uint32 server_type = IsFFAPvPRealm() ? uint32(REALM_TYPE_PVP) : getIntConfig(CONFIG_GAME_TYPE);
     uint32 realm_zone = getIntConfig(CONFIG_REALM_ZONE);
 
-    LoginDatabase.PExecute("UPDATE realmlist SET icon = {}, timezone = {} WHERE id = '{}'", server_type, realm_zone, sRealmList->GetCurrentRealmId().Realm);      // One-time query
+    LoginDatabase.PExecute("UPDATE realmlist SET icon = {}, timezone = {} WHERE id = '{}'", server_type, realm_zone, realm.Id.Realm);      // One-time query
 
     TC_LOG_INFO("server.loading", "Initialize data stores...");
     ///- Load DB2s
@@ -1803,14 +1797,14 @@ bool World::SetInitialWorldSettings()
     if (!(m_availableDbcLocaleMask & (1 << m_defaultDbcLocale)))
     {
         TC_LOG_FATAL("server.loading", "Unable to load db2 files for {} locale specified in DBC.Locale config!", localeNames[m_defaultDbcLocale]);
-        return false;
+        exit(1);
     }
 
     TC_LOG_INFO("server.loading", "Loading GameObject models...");
     if (!LoadGameObjectModelList(m_dataPath))
     {
         TC_LOG_FATAL("server.loading", "Unable to load gameobject models (part of vmaps), objects using WMO models will crash the client - server shutting down!");
-        return false;
+        exit(1);
     }
 
     TC_LOG_INFO("misc", "Loading hotfix blobs...");
@@ -1909,18 +1903,15 @@ bool World::SetInitialWorldSettings()
 
     TC_LOG_INFO("server.loading", "Loading Localization strings...");
     uint32 oldMSTime = getMSTime();
-    if (m_bool_configs[CONFIG_LOAD_LOCALES])
-    {
-        sObjectMgr->LoadCreatureLocales();
-        sObjectMgr->LoadGameObjectLocales();
-        sObjectMgr->LoadQuestTemplateLocale();
-        sObjectMgr->LoadQuestOfferRewardLocale();
-        sObjectMgr->LoadQuestRequestItemsLocale();
-        sObjectMgr->LoadQuestObjectivesLocale();
-        sObjectMgr->LoadPageTextLocales();
-        sObjectMgr->LoadGossipMenuItemsLocales();
-        sObjectMgr->LoadPointOfInterestLocales();
-    }
+    sObjectMgr->LoadCreatureLocales();
+    sObjectMgr->LoadGameObjectLocales();
+    sObjectMgr->LoadQuestTemplateLocale();
+    sObjectMgr->LoadQuestOfferRewardLocale();
+    sObjectMgr->LoadQuestRequestItemsLocale();
+    sObjectMgr->LoadQuestObjectivesLocale();
+    sObjectMgr->LoadPageTextLocales();
+    sObjectMgr->LoadGossipMenuItemsLocales();
+    sObjectMgr->LoadPointOfInterestLocales();
 
     sObjectMgr->SetDBCLocaleIndex(GetDefaultDbcLocale());        // Get once for all the locale index of DBC language (console/broadcasts)
     TC_LOG_INFO("server.loading", ">> Localization strings loaded in {} ms", GetMSTimeDiffToNow(oldMSTime));
@@ -1932,7 +1923,6 @@ bool World::SetInitialWorldSettings()
     sObjectMgr->LoadPageTexts();
 
     TC_LOG_INFO("server.loading", "Loading Game Object Templates...");         // must be after LoadPageTexts
-    sObjectMgr->LoadDestructibleHitpoints();
     sObjectMgr->LoadGameObjectTemplate();
 
     TC_LOG_INFO("server.loading", "Loading Game Object template addons...");
@@ -1980,14 +1970,11 @@ bool World::SetInitialWorldSettings()
     TC_LOG_INFO("server.loading", "Loading Enchant Spells Proc datas...");
     sSpellMgr->LoadSpellEnchantProcData();
 
-    TC_LOG_INFO("server.loading", "Loading item bonus data...");
-    ItemBonusMgr::Load();
-
-    TC_LOG_INFO("server.loading", "Loading Random item bonus list definitions...");
-    LoadItemRandomBonusListTemplates();
-
     TC_LOG_INFO("server.loading", "Loading Disables");                         // must be before loading quests and items
     DisableMgr::LoadDisables();
+
+    TC_LOG_INFO("server.loading", "Loading Item Random Enchantments Table...");
+    sItemEnchantmentMgr->LoadRandomEnchantmentsTable();
 
     TC_LOG_INFO("server.loading", "Loading Items...");                         // must be after LoadRandomEnchantmentsTable and LoadPageTexts
     sObjectMgr->LoadItemTemplates();
@@ -2073,9 +2060,6 @@ bool World::SetInitialWorldSettings()
     TC_LOG_INFO("server.loading", "Loading Creature Quest Items...");
     sObjectMgr->LoadCreatureQuestItems();
 
-    TC_LOG_INFO("server.loading", "Loading Creature Quest Currencies...");
-    sObjectMgr->LoadCreatureQuestCurrencies();
-
     TC_LOG_INFO("server.loading", "Loading Creature Linked Respawn...");
     sObjectMgr->LoadLinkedRespawn();                             // must be after LoadCreatures(), LoadGameObjects()
 
@@ -2096,9 +2080,7 @@ bool World::SetInitialWorldSettings()
 
     TC_LOG_INFO("server.loading", "Loading Quest Greetings...");
     sObjectMgr->LoadQuestGreetings();
-
-    if (m_bool_configs[CONFIG_LOAD_LOCALES])
-        sObjectMgr->LoadQuestGreetingLocales();
+    sObjectMgr->LoadQuestGreetingLocales();
 
     TC_LOG_INFO("server.loading", "Loading Objects Pooling Data...");
     sPoolMgr->LoadFromDB();
@@ -2134,9 +2116,6 @@ bool World::SetInitialWorldSettings()
 
     TC_LOG_INFO("server.loading", "Loading Area Trigger Teleports definitions...");
     sObjectMgr->LoadAreaTriggerTeleports();
-
-    TC_LOG_INFO("server.loading", "Loading Area Trigger Polygon data...");
-    sObjectMgr->LoadAreaTriggerPolygons();
 
     TC_LOG_INFO("server.loading", "Loading Access Requirements...");
     sObjectMgr->LoadAccessRequirements();                        // must be after item template load
@@ -2192,17 +2171,8 @@ bool World::SetInitialWorldSettings()
     TC_LOG_INFO("server.loading", "Loading Player Choices...");
     sObjectMgr->LoadPlayerChoices();
 
-    if (m_bool_configs[CONFIG_LOAD_LOCALES])
-    {
-        TC_LOG_INFO("server.loading", "Loading Player Choices Locales...");
-        sObjectMgr->LoadPlayerChoicesLocale();
-    }
-
-    TC_LOG_INFO("server.loading", "Loading UIMap questlines...");
-    sObjectMgr->LoadUiMapQuestLines();
-
-    TC_LOG_INFO("server.loading", "Loading UIMap quests...");
-    sObjectMgr->LoadUiMapQuests();
+    TC_LOG_INFO("server.loading", "Loading Player Choices Locales...");
+    sObjectMgr->LoadPlayerChoicesLocale();
 
     TC_LOG_INFO("server.loading", "Loading Jump Charge Params...");
     sObjectMgr->LoadJumpChargeParams();
@@ -2248,12 +2218,8 @@ bool World::SetInitialWorldSettings()
     sAchievementMgr->LoadAchievementScripts();
     TC_LOG_INFO("server.loading", "Loading Achievement Rewards...");
     sAchievementMgr->LoadRewards();
-
-    if (m_bool_configs[CONFIG_LOAD_LOCALES])
-    {
-        TC_LOG_INFO("server.loading", "Loading Achievement Reward Locales...");
-        sAchievementMgr->LoadRewardLocales();
-    }
+    TC_LOG_INFO("server.loading", "Loading Achievement Reward Locales...");
+    sAchievementMgr->LoadRewardLocales();
     TC_LOG_INFO("server.loading", "Loading Completed Achievements...");
     sAchievementMgr->LoadCompletedAchievements();
 
@@ -2372,9 +2338,6 @@ bool World::SetInitialWorldSettings()
     /*TC_LOG_INFO("server.loading", "Loading GM surveys...");
     sSupportMgr->LoadSurveys();*/
 
-    TC_LOG_INFO("server.loading", "Loading garrison info...");
-    sGarrisonMgr.Initialize();
-
     ///- Handle outdated emails (delete/return)
     TC_LOG_INFO("server.loading", "Returning old mails...");
     sObjectMgr->ReturnOrDeleteOldMails(false);
@@ -2392,14 +2355,8 @@ bool World::SetInitialWorldSettings()
     TC_LOG_INFO("server.loading", "Loading Creature Texts...");
     sCreatureTextMgr->LoadCreatureTexts();
 
-    if (m_bool_configs[CONFIG_LOAD_LOCALES])
-    {
-        TC_LOG_INFO("server.loading", "Loading Creature Text Locales...");
-        sCreatureTextMgr->LoadCreatureTextLocales();
-    }
-
-    TC_LOG_INFO("server.loading", "Loading creature StaticFlags overrides...");
-    sObjectMgr->LoadCreatureStaticFlagsOverride(); // must be after LoadCreatures
+    TC_LOG_INFO("server.loading", "Loading Creature Text Locales...");
+    sCreatureTextMgr->LoadCreatureTextLocales();
 
     TC_LOG_INFO("server.loading", "Initializing Scripts...");
     sScriptMgr->Initialize();
@@ -2434,7 +2391,7 @@ bool World::SetInitialWorldSettings()
     GameTime::UpdateGameTimers();
 
     LoginDatabase.PExecute("INSERT INTO uptime (realmid, starttime, uptime, revision) VALUES({}, {}, 0, '{}')",
-        sRealmList->GetCurrentRealmId().Realm, uint32(GameTime::GetStartTime()), GitRevision::GetFullVersion());    // One-time query
+                            realm.Id.Realm, uint32(GameTime::GetStartTime()), GitRevision::GetFullVersion());       // One-time query
 
     m_timers[WUPDATE_AUCTIONS].SetInterval(MINUTE*IN_MILLISECONDS);
     m_timers[WUPDATE_AUCTIONS_PENDING].SetInterval(250);
@@ -2505,7 +2462,6 @@ bool World::SetInitialWorldSettings()
     ///- Initialize Battlegrounds
     TC_LOG_INFO("server.loading", "Starting Battleground System");
     sBattlegroundMgr->LoadBattlegroundTemplates();
-    sBattlegroundMgr->LoadBattlegroundScriptTemplate();
 
     ///- Initialize outdoor pvp
     TC_LOG_INFO("server.loading", "Starting Outdoor PvP System");
@@ -2565,7 +2521,6 @@ bool World::SetInitialWorldSettings()
     TC_LOG_INFO("server.worldserver", "World initialized in {} minutes {} seconds", (startupDuration / 60000), ((startupDuration % 60000) / 1000));
 
     TC_METRIC_EVENT("events", "World initialized", "World initialized in " + std::to_string(startupDuration / 60000) + " minutes " + std::to_string((startupDuration % 60000) / 1000) + " seconds");
-    return true;
 }
 
 void World::SetForcedWarModeFactionBalanceState(TeamId team, int32 reward)
@@ -2586,7 +2541,7 @@ void World::LoadAutobroadcasts()
     m_Autobroadcasts.clear();
 
     LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_SEL_AUTOBROADCAST);
-    stmt->setInt32(0, sRealmList->GetCurrentRealmId().Realm);
+    stmt->setInt32(0, realm.Id.Realm);
     PreparedQueryResult result = LoginDatabase.Query(stmt);
 
     if (!result)
@@ -2641,14 +2596,11 @@ void World::Update(uint32 diff)
         if (getBoolConfig(CONFIG_PRESERVE_CUSTOM_CHANNELS))
         {
             TC_METRIC_TIMER("world_update_time", TC_METRIC_TAG("type", "Save custom channels"));
-            ChannelMgr* mgr1 = ASSERT_NOTNULL(ChannelMgr::ForTeam(PANDARIA_NEUTRAL));
+            ChannelMgr* mgr1 = ASSERT_NOTNULL(ChannelMgr::ForTeam(ALLIANCE));
             mgr1->SaveToDB();
-            ChannelMgr* mgr2 = ASSERT_NOTNULL(ChannelMgr::ForTeam(ALLIANCE));
+            ChannelMgr* mgr2 = ASSERT_NOTNULL(ChannelMgr::ForTeam(HORDE));
             if (mgr1 != mgr2)
                 mgr2->SaveToDB();
-            ChannelMgr* mgr3 = ASSERT_NOTNULL(ChannelMgr::ForTeam(HORDE));
-            if (mgr1 != mgr3)
-                mgr3->SaveToDB();
         }
     }
 
@@ -2765,7 +2717,7 @@ void World::Update(uint32 diff)
 
         stmt->setUInt32(0, tmpDiff);
         stmt->setUInt16(1, uint16(maxOnlinePlayers));
-        stmt->setUInt32(2, sRealmList->GetCurrentRealmId().Realm);
+        stmt->setUInt32(2, realm.Id.Realm);
         stmt->setUInt32(3, uint32(GameTime::GetStartTime()));
 
         LoginDatabase.Execute(stmt);
@@ -2783,7 +2735,7 @@ void World::Update(uint32 diff)
 
             stmt->setUInt32(0, getIntConfig(CONFIG_LOGDB_CLEARTIME));
             stmt->setUInt32(1, uint32(GameTime::GetGameTime()));
-            stmt->setUInt32(2, sRealmList->GetCurrentRealmId().Realm);
+            stmt->setUInt32(2, realm.Id.Realm);
 
             LoginDatabase.Execute(stmt);
         }
@@ -3547,7 +3499,7 @@ void World::_UpdateRealmCharCount(PreparedQueryResult resultCharCount)
         LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_REP_REALM_CHARACTERS);
         stmt->setUInt8(0, charCount);
         stmt->setUInt32(1, accountId);
-        stmt->setUInt32(2, sRealmList->GetCurrentRealmId().Realm);
+        stmt->setUInt32(2, realm.Id.Realm);
         trans->Append(stmt);
 
         LoginDatabase.CommitTransaction(trans);
@@ -3570,10 +3522,6 @@ void World::DailyReset()
 {
     // reset all saved quest status
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_RESET_CHARACTER_QUESTSTATUS_DAILY);
-    CharacterDatabase.Execute(stmt);
-
-    stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHARACTER_GARRISON_FOLLOWER_ACTIVATIONS);
-    stmt->setUInt32(0, 1);
     CharacterDatabase.Execute(stmt);
 
     // reset all quest status in memory
@@ -4005,9 +3953,11 @@ void World::UpdateWarModeRewardValues()
     sWorldStateMgr->SetValueAndSaveInDb(WS_WAR_MODE_ALLIANCE_BUFF_VALUE, 10 + (dominantFaction == TEAM_HORDE ? outnumberedFactionReward : 0), false, nullptr);
 }
 
+Realm realm;
+
 uint32 GetVirtualRealmAddress()
 {
-    return sRealmList->GetCurrentRealmId().GetAddress();
+    return realm.Id.GetAddress();
 }
 
 CliCommandHolder::CliCommandHolder(void* callbackArg, char const* command, Print zprint, CommandFinished commandFinished)

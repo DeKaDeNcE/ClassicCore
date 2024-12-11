@@ -20,7 +20,6 @@
 
 #include "ByteBuffer.h"
 #include "Duration.h"
-#include "Optional.h"
 #include "Tuples.h"
 #include <short_alloc/short_alloc.h>
 #include <string_view>
@@ -31,7 +30,7 @@ namespace WorldPackets
     class InvalidStringValueException : public ByteBufferInvalidValueException
     {
     public:
-        InvalidStringValueException(std::string_view value);
+        InvalidStringValueException(std::string const& value);
 
         std::string const& GetInvalidValue() const { return _value; }
 
@@ -42,29 +41,29 @@ namespace WorldPackets
     class InvalidUtf8ValueException : public InvalidStringValueException
     {
     public:
-        InvalidUtf8ValueException(std::string_view value);
+        InvalidUtf8ValueException(std::string const& value);
     };
 
     class InvalidHyperlinkException : public InvalidStringValueException
     {
     public:
-        InvalidHyperlinkException(std::string_view value);
+        InvalidHyperlinkException(std::string const& value);
     };
 
     class IllegalHyperlinkException : public InvalidStringValueException
     {
     public:
-        IllegalHyperlinkException(std::string_view value);
+        IllegalHyperlinkException(std::string const& value);
     };
 
     namespace Strings
     {
-        struct RawBytes { static bool Validate(std::string_view /*value*/) { return true; } };
+        struct RawBytes { static bool Validate(std::string const& /*value*/) { return true; } };
         template<std::size_t MaxBytesWithoutNullTerminator>
-        struct ByteSize { static bool Validate(std::string_view value) { return value.size() <= MaxBytesWithoutNullTerminator; } };
-        struct Utf8 { static bool Validate(std::string_view value); };
-        struct Hyperlinks { static bool Validate(std::string_view value); };
-        struct NoHyperlinks { static bool Validate(std::string_view value); };
+        struct ByteSize { static bool Validate(std::string const& value) { return value.size() <= MaxBytesWithoutNullTerminator; } };
+        struct Utf8 { static bool Validate(std::string const& value); };
+        struct Hyperlinks { static bool Validate(std::string const& value); };
+        struct NoHyperlinks { static bool Validate(std::string const& value); };
     }
 
     /**
@@ -90,7 +89,9 @@ namespace WorldPackets
 
         friend ByteBuffer& operator>>(ByteBuffer& data, String& value)
         {
-            value = data.ReadCString(false);
+            std::string string = data.ReadCString(false);
+            Validate(string);
+            value._storage = std::move(string);
             return data;
         }
 
@@ -108,26 +109,14 @@ namespace WorldPackets
             return *this;
         }
 
-        String& operator=(std::string_view value)
-        {
-            Validate(value);
-            _storage = std::move(value);
-            return *this;
-        }
-
-        String& operator=(char const* value)
-        {
-            return *this = std::string_view(value);
-        }
-
     private:
-        static bool Validate(std::string_view value)
+        static bool Validate(std::string const& value)
         {
             return ValidateNth(value, std::make_index_sequence<std::tuple_size_v<ValidatorList>>{});
         }
 
         template<std::size_t... indexes>
-        static bool ValidateNth(std::string_view value, std::index_sequence<indexes...>)
+        static bool ValidateNth(std::string const& value, std::index_sequence<indexes...>)
         {
             return (std::tuple_element_t<indexes, ValidatorList>::Validate(value) && ...);
         }
@@ -328,121 +317,6 @@ namespace WorldPackets
     private:
         ChronoDuration _value = ChronoDuration::zero();
     };
-
-    template<typename Underlying, typename T>
-    struct AsWriter
-    {
-        T const& Value;
-
-        friend inline ByteBuffer& operator<<(ByteBuffer& data, AsWriter const& opt)
-        {
-            data << Underlying(opt.Value);
-            return data;
-        }
-    };
-
-    template<typename Underlying, typename T>
-    struct AsReaderWriter : AsWriter<Underlying, T>
-    {
-        friend inline ByteBuffer& operator>>(ByteBuffer& data, AsReaderWriter const& opt)
-        {
-            Underlying temp;
-            data >> temp;
-            const_cast<T&>(opt.Value) = static_cast<T>(temp);
-            return data;
-        }
-    };
-
-    template<typename Underlying, typename T>
-    inline AsWriter<Underlying, T> As(T const& value) { return { value }; }
-
-    template<typename Underlying, typename T>
-    inline AsReaderWriter<Underlying, T> As(T& value) { return { value }; }
-
-    template<typename T>
-    struct OptionalInitWriter
-    {
-        Optional<T> const& Opt;
-
-        friend inline ByteBuffer& operator<<(ByteBuffer& data, OptionalInitWriter const& opt)
-        {
-            data.WriteBit(opt.Opt.has_value());
-            return data;
-        }
-    };
-
-    template<typename T>
-    struct OptionalInitReaderWriter : OptionalInitWriter<T>
-    {
-        friend inline ByteBuffer& operator>>(ByteBuffer& data, OptionalInitReaderWriter const& opt)
-        {
-            if (data.ReadBit())
-                const_cast<Optional<T>&>(opt.Opt).emplace();
-            return data;
-        }
-    };
-
-    template<typename T>
-    inline OptionalInitWriter<T> OptionalInit(Optional<T> const& value) { return { value }; }
-
-    template<typename T>
-    inline OptionalInitReaderWriter<T> OptionalInit(Optional<T>& value) { return { value }; }
-
-    template<uint32 BitCount, typename T>
-    struct BitsWriter
-    {
-        T const& Value;
-
-        friend inline ByteBuffer& operator<<(ByteBuffer& data, BitsWriter const& bits)
-        {
-            data.WriteBits(static_cast<uint32>(bits.Value), BitCount);
-            return data;
-        }
-    };
-
-    template<uint32 BitCount, typename T>
-    struct BitsReaderWriter : BitsWriter<BitCount, T>
-    {
-        friend inline ByteBuffer& operator>>(ByteBuffer& data, BitsReaderWriter const& bits)
-        {
-            const_cast<T&>(bits.Value) = static_cast<T>(data.ReadBits(BitCount));
-            return data;
-        }
-    };
-
-    template<uint32 BitCount, typename T>
-    inline BitsWriter<BitCount, T> Bits(T const& value) { return { value }; }
-
-    template<uint32 BitCount, typename T>
-    inline BitsReaderWriter<BitCount, T> Bits(T& value) { return { value }; }
-
-    template<uint32 BitCount, typename Container>
-    struct BitsSizeWriter
-    {
-        Container const& Value;
-
-        friend inline ByteBuffer& operator<<(ByteBuffer& data, BitsSizeWriter const& bits)
-        {
-            data.WriteBits(static_cast<uint32>(bits.Value.size()), BitCount);
-            return data;
-        }
-    };
-
-    template<uint32 BitCount, typename Container>
-    struct BitsSizeReaderWriter : BitsSizeWriter<BitCount, Container>
-    {
-        friend inline ByteBuffer& operator>>(ByteBuffer& data, BitsSizeReaderWriter const& bits)
-        {
-            const_cast<Container&>(bits.Value).resize(data.ReadBits(BitCount));
-            return data;
-        }
-    };
-
-    template<uint32 BitCount, typename Container>
-    inline BitsSizeWriter<BitCount, Container> BitsSize(Container const& value) { return { value }; }
-
-    template<uint32 BitCount, typename Container>
-    inline BitsSizeReaderWriter<BitCount, Container> BitsSize(Container& value) { return { value }; }
 }
 
 #endif // PacketUtilities_h__

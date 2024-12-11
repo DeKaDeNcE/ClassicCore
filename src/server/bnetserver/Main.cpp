@@ -35,7 +35,6 @@
 #include "IpNetwork.h"
 #include "Locales.h"
 #include "LoginRESTService.h"
-#include "Memory.h"
 #include "MySQLThreading.h"
 #include "OpenSSLCrypto.h"
 #include "ProcessPriority.h"
@@ -66,10 +65,9 @@ namespace fs = boost::filesystem;
 
 #if TRINITY_PLATFORM == TRINITY_PLATFORM_WINDOWS
 #include "ServiceWin32.h"
-#include <tchar.h>
-TCHAR serviceName[] = _T("bnetserver");
-TCHAR serviceLongName[] = _T("TrinityCore bnet service");
-TCHAR serviceDescription[] = _T("TrinityCore Battle.net emulator authentication service");
+char serviceName[] = "bnetserver";
+char serviceLongName[] = "TrinityCore bnet service";
+char serviceDescription[] = "TrinityCore Battle.net emulator authentication service";
 /*
 * -1 - not in service mode
 *  0 - stopped
@@ -104,20 +102,17 @@ int main(int argc, char** argv)
     if (vm.count("help") || vm.count("version"))
         return 0;
 
-    uint32 dummy = 0;
-
     GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-    auto protobufHandle = Trinity::make_unique_ptr_with_deleter<[](void*) { google::protobuf::ShutdownProtobufLibrary(); }>(&dummy);
+    std::shared_ptr<void> protobufHandle(nullptr, [](void*) { google::protobuf::ShutdownProtobufLibrary(); });
 
 #if TRINITY_PLATFORM == TRINITY_PLATFORM_WINDOWS
-    Trinity::Service::Init(serviceLongName, serviceName, serviceDescription, &main, &m_ServiceStatus);
     if (winServiceAction == "install")
-        return Trinity::Service::Install();
+        return WinServiceInstall() ? 0 : 1;
     if (winServiceAction == "uninstall")
-        return Trinity::Service::Uninstall();
+        return WinServiceUninstall() ? 0 : 1;
     if (winServiceAction == "run")
-        return Trinity::Service::Run();
+        return WinServiceRun() ? 0 : 1;
 #endif
 
     std::string configError;
@@ -166,7 +161,7 @@ int main(int argc, char** argv)
 
     OpenSSLCrypto::threadsSetup(boost::dll::program_location().remove_filename());
 
-    auto opensslHandle = Trinity::make_unique_ptr_with_deleter<[](void*) { OpenSSLCrypto::threadsCleanup(); }>(&dummy);
+    std::shared_ptr<void> opensslHandle(nullptr, [](void*) { OpenSSLCrypto::threadsCleanup(); });
 
     // bnetserver PID file creation
     std::string pidFile = sConfigMgr->GetStringDefault("PidFile", "");
@@ -191,7 +186,7 @@ int main(int argc, char** argv)
     if (!StartDB())
         return 1;
 
-    auto dbHandle = Trinity::make_unique_ptr_with_deleter<[](void*) { StopDB(); }>(&dummy);
+    std::shared_ptr<void> dbHandle(nullptr, [](void*) { StopDB(); });
 
     if (vm.count("update-databases-only"))
         return 0;
@@ -219,7 +214,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    auto sLoginServiceHandle = Trinity::make_unique_ptr_with_deleter<&Battlenet::LoginRESTService::StopNetwork>(&sLoginService);
+    std::shared_ptr<void> sLoginServiceHandle(nullptr, [](void*) { sLoginService.StopNetwork(); });
 
     // Start the listening port (acceptor) for auth connections
     int32 bnport = sConfigMgr->GetIntDefault("BattlenetPort", 1119);
@@ -232,7 +227,7 @@ int main(int argc, char** argv)
     // Get the list of realms for the server
     sRealmList->Initialize(*ioContext, sConfigMgr->GetIntDefault("RealmsStateUpdateDelay", 10));
 
-    auto sRealmListHandle = Trinity::make_unique_ptr_with_deleter<&RealmList::Close>(sRealmList);
+    std::shared_ptr<void> sRealmListHandle(nullptr, [](void*) { sRealmList->Close(); });
 
     std::string bindIp = sConfigMgr->GetStringDefault("BindIP", "0.0.0.0");
 
@@ -242,7 +237,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    auto sSessionMgrHandle = Trinity::make_unique_ptr_with_deleter<&Battlenet::SessionManager::StopNetwork>(&sSessionMgr);
+    std::shared_ptr<void> sSessionMgrHandle(nullptr, [](void*) { sSessionMgr.StopNetwork(); });
 
     // Set signal handlers
     boost::asio::signal_set signals(*ioContext, SIGINT, SIGTERM);
@@ -435,9 +430,3 @@ variables_map GetConsoleArguments(int argc, char** argv, fs::path& configFile, f
 
     return variablesMap;
 }
-
-#if TRINITY_PLATFORM == TRINITY_PLATFORM_WINDOWS
-#include "WheatyExceptionReport.h"
-// must be at end of file because of init_seg pragma
-INIT_CRASH_HANDLER();
-#endif

@@ -61,8 +61,7 @@ constexpr bool IsStabledPetSlot(PetSaveMode slot)
 enum PetStableFlags : uint8
 {
     PET_STABLE_ACTIVE   = 0x1,
-    PET_STABLE_INACTIVE = 0x2,
-    PET_STABLE_FAVORITE = 0x8
+    PET_STABLE_INACTIVE = 0x2
 };
 
 enum PetSpellState

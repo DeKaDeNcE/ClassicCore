@@ -1005,7 +1005,7 @@ public:
 
             me->SetStandState(UNIT_STAND_STATE_KNEEL);
             // expect database to have RegenHealth=0
-            me->SetSpawnHealth();
+            me->SetHealth(me->CountPctFromMaxHealth(70));
         }
 
         void JustEngagedWith(Unit* /*who*/) override { }

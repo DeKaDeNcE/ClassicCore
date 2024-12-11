@@ -49,13 +49,8 @@ bool ItemModList::operator==(ItemModList const& r) const
 void ItemInstance::Initialize(::Item const* item)
 {
     ItemID = item->GetEntry();
-    std::vector<int32> const& bonusListIds = item->GetBonusListIDs();
-    if (!bonusListIds.empty())
-    {
-        ItemBonus.emplace();
-        ItemBonus->BonusListIDs.insert(ItemBonus->BonusListIDs.end(), bonusListIds.begin(), bonusListIds.end());
-        ItemBonus->Context = item->GetContext();
-    }
+    RandomPropertiesSeed = item->m_itemData->PropertySeed;
+    RandomPropertiesID = item->m_itemData->RandomPropertiesID;
 
     for (UF::ItemMod mod : item->m_itemData->Modifiers->Values)
         Modifications.Values.emplace_back(mod.Value, ItemModifier(mod.Type));
@@ -78,15 +73,6 @@ void ItemInstance::Initialize(UF::SocketedGem const* gem)
 void ItemInstance::Initialize(::LootItem const& lootItem)
 {
     ItemID = lootItem.itemid;
-
-    if (!lootItem.BonusListIDs.empty() || lootItem.randomBonusListId)
-    {
-        ItemBonus.emplace();
-        ItemBonus->BonusListIDs = lootItem.BonusListIDs;
-        ItemBonus->Context = lootItem.context;
-        if (lootItem.randomBonusListId)
-            ItemBonus->BonusListIDs.push_back(lootItem.randomBonusListId);
-    }
 }
 
 void ItemInstance::Initialize(::VoidStorageItem const* voidItem)
@@ -95,16 +81,6 @@ void ItemInstance::Initialize(::VoidStorageItem const* voidItem)
 
     if (voidItem->FixedScalingLevel)
         Modifications.Values.emplace_back(voidItem->FixedScalingLevel, ITEM_MODIFIER_TIMEWALKER_LEVEL);
-
-    if (voidItem->ArtifactKnowledgeLevel)
-        Modifications.Values.emplace_back(voidItem->ArtifactKnowledgeLevel, ITEM_MODIFIER_ARTIFACT_KNOWLEDGE_LEVEL);
-
-    if (!voidItem->BonusListIDs.empty())
-    {
-        ItemBonus.emplace();
-        ItemBonus->Context = voidItem->Context;
-        ItemBonus->BonusListIDs = voidItem->BonusListIDs;
-    }
 }
 
 bool ItemInstance::operator==(ItemInstance const& r) const
@@ -129,9 +105,6 @@ bool ItemBonusKey::operator==(ItemBonusKey const& right) const
     if (BonusListIDs != right.BonusListIDs)
         return false;
 
-    if (Modifications != right.Modifications)
-        return false;
-
     return true;
 }
 
@@ -147,39 +120,40 @@ ByteBuffer& operator<<(ByteBuffer& data, ItemBonuses const& itemBonusInstanceDat
 
 ByteBuffer& operator>>(ByteBuffer& data, ItemBonuses& itemBonusInstanceData)
 {
-    itemBonusInstanceData.Context = data.read<ItemContext>();
     uint32 bonusListIdSize;
+
+    itemBonusInstanceData.Context = data.read<ItemContext>();
     data >> bonusListIdSize;
-    if (bonusListIdSize > 32)
-        throw PacketArrayMaxCapacityException(bonusListIdSize, 32);
 
-    itemBonusInstanceData.BonusListIDs.resize(bonusListIdSize);
-
-    for (int32& bonusListID : itemBonusInstanceData.BonusListIDs)
-        data >> bonusListID;
+    for (uint32 i = 0u; i < bonusListIdSize; ++i)
+    {
+        uint32 bonusId;
+        data >> bonusId;
+        itemBonusInstanceData.BonusListIDs.push_back(bonusId);
+    }
 
     return data;
 }
 
 ByteBuffer& operator<<(ByteBuffer& data, ItemMod const& itemMod)
 {
-    data << uint8(itemMod.Type);
     data << int32(itemMod.Value);
+    data << uint8(itemMod.Type);
 
     return data;
 }
 
 ByteBuffer& operator>>(ByteBuffer& data, ItemMod& itemMod)
 {
-    data >> As<uint8>(itemMod.Type);
     data >> itemMod.Value;
+    itemMod.Type = data.read<ItemModifier, uint8>();
 
     return data;
 }
 
 ByteBuffer& operator<<(ByteBuffer& data, ItemModList const& itemModList)
 {
-    data << BitsSize<6>(itemModList.Values);
+    data.WriteBits(itemModList.Values.size(), 6);
     data.FlushBits();
 
     for (ItemMod const& itemMod : itemModList.Values)
@@ -190,7 +164,7 @@ ByteBuffer& operator<<(ByteBuffer& data, ItemModList const& itemModList)
 
 ByteBuffer& operator>>(ByteBuffer& data, ItemModList& itemModList)
 {
-    data >> BitsSize<6>(itemModList.Values);
+    itemModList.Values.resize(data.ReadBits(6));
     data.ResetBitPos();
 
     for (ItemMod& itemMod : itemModList.Values)
@@ -202,6 +176,8 @@ ByteBuffer& operator>>(ByteBuffer& data, ItemModList& itemModList)
 ByteBuffer& operator<<(ByteBuffer& data, ItemInstance const& itemInstance)
 {
     data << int32(itemInstance.ItemID);
+    data << int32(itemInstance.RandomPropertiesSeed);
+    data << int32(itemInstance.RandomPropertiesID);
 
     data.WriteBit(itemInstance.ItemBonus.has_value());
     data.FlushBits();
@@ -217,6 +193,8 @@ ByteBuffer& operator<<(ByteBuffer& data, ItemInstance const& itemInstance)
 ByteBuffer& operator>>(ByteBuffer& data, ItemInstance& itemInstance)
 {
     data >> itemInstance.ItemID;
+    data >> itemInstance.RandomPropertiesSeed;
+    data >> itemInstance.RandomPropertiesID;
 
     bool hasItemBonus = data.ReadBit();
     data.ResetBitPos();
@@ -236,13 +214,9 @@ ByteBuffer& operator<<(ByteBuffer& data, ItemBonusKey const& itemBonusKey)
 {
     data << int32(itemBonusKey.ItemID);
     data << uint32(itemBonusKey.BonusListIDs.size());
-    data << uint32(itemBonusKey.Modifications.size());
 
     if (!itemBonusKey.BonusListIDs.empty())
         data.append(itemBonusKey.BonusListIDs.data(), itemBonusKey.BonusListIDs.size());
-
-    for (ItemMod const& modification : itemBonusKey.Modifications)
-        data << modification;
 
     return data;
 }

@@ -19,7 +19,6 @@
 #define _ACCMGR_H
 
 #include "RBAC.h"
-#include <functional>
 
 enum class AccountOpResult : uint8
 {

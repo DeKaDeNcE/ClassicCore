@@ -18,17 +18,37 @@
 #ifndef _BIH_H
 #define _BIH_H
 
-#include "Define.h"
-#include "advstd.h"
-#include <G3D/AABox.h>
-#include <G3D/Ray.h>
 #include <G3D/Vector3.h>
-#include <algorithm>
-#include <limits>
+#include <G3D/Ray.h>
+#include <G3D/AABox.h>
+
+#include "Define.h"
+
 #include <stdexcept>
 #include <vector>
+#include <algorithm>
+#include <limits>
+#include "string.h"
 
 #define MAX_STACK_SIZE 64
+
+// https://stackoverflow.com/a/4328396
+
+static inline uint32 floatToRawIntBits(float f)
+{
+    static_assert(sizeof(float) == sizeof(uint32), "Size of uint32 and float must be equal for this to work");
+    uint32 ret;
+    memcpy(&ret, &f, sizeof(float));
+    return ret;
+}
+
+static inline float intBitsToFloat(uint32 i)
+{
+    static_assert(sizeof(float) == sizeof(uint32), "Size of uint32 and float must be equal for this to work");
+    float ret;
+    memcpy(&ret, &i, sizeof(uint32));
+    return ret;
+}
 
 struct AABound
 {
@@ -49,7 +69,6 @@ class TC_COMMON_API BIH
         {
             tree.clear();
             objects.clear();
-            bounds = G3D::AABox::empty();
             // create space for the first node
             tree.push_back(3u << 30u); // dummy leaf
             tree.insert(tree.end(), 2, 0);
@@ -92,7 +111,6 @@ class TC_COMMON_API BIH
             delete[] dat.indices;
         }
         uint32 primCount() const { return uint32(objects.size()); }
-        G3D::AABox const& bound() const { return bounds; }
 
         template<typename RayCallback>
         void intersectRay(const G3D::Ray &r, RayCallback& intersectCallback, float &maxDist, bool stopAtFirst = false) const
@@ -134,7 +152,7 @@ class TC_COMMON_API BIH
 
             for (int i=0; i<3; ++i)
             {
-                offsetFront[i] = advstd::bit_cast<uint32>(dir[i]) >> 31;
+                offsetFront[i] = floatToRawIntBits(dir[i]) >> 31;
                 offsetBack[i] = offsetFront[i] ^ 1;
                 offsetFront3[i] = offsetFront[i] * 3;
                 offsetBack3[i] = offsetBack[i] * 3;
@@ -160,8 +178,8 @@ class TC_COMMON_API BIH
                         if (axis < 3)
                         {
                             // "normal" interior node
-                            float tf = (advstd::bit_cast<float>(tree[node + offsetFront[axis]]) - org[axis]) * invDir[axis];
-                            float tb = (advstd::bit_cast<float>(tree[node + offsetBack[axis]]) - org[axis]) * invDir[axis];
+                            float tf = (intBitsToFloat(tree[node + offsetFront[axis]]) - org[axis]) * invDir[axis];
+                            float tb = (intBitsToFloat(tree[node + offsetBack[axis]]) - org[axis]) * invDir[axis];
                             // ray passes between clip zones
                             if (tf < intervalMin && tb > intervalMax)
                                 break;
@@ -205,8 +223,8 @@ class TC_COMMON_API BIH
                     {
                         if (axis>2)
                             return; // should not happen
-                        float tf = (advstd::bit_cast<float>(tree[node + offsetFront[axis]]) - org[axis]) * invDir[axis];
-                        float tb = (advstd::bit_cast<float>(tree[node + offsetBack[axis]]) - org[axis]) * invDir[axis];
+                        float tf = (intBitsToFloat(tree[node + offsetFront[axis]]) - org[axis]) * invDir[axis];
+                        float tb = (intBitsToFloat(tree[node + offsetBack[axis]]) - org[axis]) * invDir[axis];
                         node = offset;
                         intervalMin = (tf >= intervalMin) ? tf : intervalMin;
                         intervalMax = (tb <= intervalMax) ? tb : intervalMax;
@@ -254,8 +272,8 @@ class TC_COMMON_API BIH
                         if (axis < 3)
                         {
                             // "normal" interior node
-                            float tl = advstd::bit_cast<float>(tree[node + 1]);
-                            float tr = advstd::bit_cast<float>(tree[node + 2]);
+                            float tl = intBitsToFloat(tree[node + 1]);
+                            float tr = intBitsToFloat(tree[node + 2]);
                             // point is between clip zones
                             if (tl < p[axis] && tr > p[axis])
                                 break;
@@ -292,8 +310,8 @@ class TC_COMMON_API BIH
                     {
                         if (axis>2)
                             return; // should not happen
-                        float tl = advstd::bit_cast<float>(tree[node + 1]);
-                        float tr = advstd::bit_cast<float>(tree[node + 2]);
+                        float tl = intBitsToFloat(tree[node + 1]);
+                        float tr = intBitsToFloat(tree[node + 2]);
                         node = offset;
                         if (tl > p[axis] || tr < p[axis])
                             break;

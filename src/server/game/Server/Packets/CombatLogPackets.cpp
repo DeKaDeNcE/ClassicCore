@@ -110,7 +110,7 @@ WorldPacket const* SpellExecuteLog::Write()
             {
                 *this << powerDrainTarget.Victim;
                 *this << uint32(powerDrainTarget.Points);
-                *this << int8(powerDrainTarget.PowerType);
+                *this << uint32(powerDrainTarget.PowerType);
                 *this << float(powerDrainTarget.Amplitude);
             }
         }
@@ -248,7 +248,7 @@ WorldPacket const* SpellEnergizeLog::Write()
     *this << CasterGUID;
 
     *this << int32(SpellID);
-    *this << int8(Type);
+    *this << int32(Type);
     *this << int32(Amount);
     *this << int32(OverEnergize);
 
@@ -392,7 +392,17 @@ WorldPacket const* AttackerStateUpdate::Write()
     if (HitInfo & (HITINFO_BLOCK | HITINFO_UNK12))
         attackRoundInfo << float(Unk);
 
-    attackRoundInfo << ContentTuning;
+    attackRoundInfo << uint8(ContentTuning.Type);
+    attackRoundInfo << uint8(ContentTuning.TargetLevel);
+    attackRoundInfo << uint8(ContentTuning.Expansion);
+    attackRoundInfo << int16(ContentTuning.PlayerLevelDelta);
+    attackRoundInfo << int8(ContentTuning.TargetScalingLevelDelta);
+    attackRoundInfo << float(ContentTuning.PlayerItemLevel);
+    attackRoundInfo << float(ContentTuning.TargetItemLevel);
+    attackRoundInfo << uint32(ContentTuning.ScalingHealthItemLevelCurveID);
+    attackRoundInfo << uint32(ContentTuning.Flags);
+    attackRoundInfo << int32(ContentTuning.PlayerContentTuningID);
+    attackRoundInfo << int32(ContentTuning.TargetContentTuningID);
 
     WriteLogDataBit();
     FlushBits();
